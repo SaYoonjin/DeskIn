@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: destin
+  profiles:
+    active: local
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+  batch:
+    job:
+      enabled: false # 스케줄러/수동 트리거로만 실행 (앱 기동 시 자동 실행 방지)
+    jdbc:
+      initialize-schema: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/destin?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-change-me}
+  access-token-expire-ms: 3600000 # 1h
+
+toss:
+  secret-key: ${TOSS_SECRET_KEY:}
+  client-key: ${TOSS_CLIENT_KEY:}
+  base-url: https://api.tosspayments.com
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expire-ms: 3600000
+
+toss:
+  secret-key: ${TOSS_SECRET_KEY}
+  client-key: ${TOSS_CLIENT_KEY}
+  base-url: https://api.tosspayments.com
