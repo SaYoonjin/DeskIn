@@ -1,6 +1,6 @@
 spring:
   application:
-    name: destin
+    name: deskIn
   profiles:
     active: local
 
@@ -25,7 +25,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:mysql://localhost:3306/destin?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    url: jdbc:mysql://localhost:3306/deskin?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
