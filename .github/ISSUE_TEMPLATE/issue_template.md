@@ -1,8 +1,9 @@
 ---
 name: 작업 이슈
+about: 기능 개발 및 수정 작업을 위한 이슈 템플릿입니다.
 title: "[도메인] 작업 내용을 짧게"
+labels: ''
 assignees: ''
-reviewer: ''
 ---
 
 ## 개요
@@ -32,7 +33,6 @@ reviewer: ''
 - [ ] `com.destin.xxx.controller.XxxController`
 - [ ] `com.destin.xxx.service.XxxService` / `impl.XxxServiceImpl`
 
-
 ## 작업 흐름
 <!-- 구현 순서를 단계별로. 리뷰어가 코드 안 봐도 흐름 이해할 수 있게 -->
 1.
@@ -56,6 +56,6 @@ reviewer: ''
 <!-- 애매한 부분, 팀원과 합의가 더 필요한 부분 -->
 -
 
-## (PR 여러개일 경우)추가 반영 사항
-<!-- 한 이슈에 mr 여러개일 경우 혹은 이슈 생성과 다르게 구현된 경우 작성 -->
+## (PR 여러 개일 경우) 추가 반영 사항
+<!-- 한 이슈에 PR 여러 개일 경우 혹은 이슈 생성과 다르게 구현된 경우 작성 -->
 -
