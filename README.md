@@ -15,7 +15,7 @@ DeskIn은 데스크테리어(desk interior) 상품을 판매하는 멀티셀러 
 
 - Java 17 / Spring Boot 3.3
 - Spring Web, Spring Data JPA, Spring Security, Spring Batch
-- MySQL
+- PostgreSQL
 - JWT (jjwt)
 - Toss Payments (결제 PG)
 - Gradle
@@ -70,7 +70,7 @@ com.deskin
 
 아래는 구현 진행 시 사용할 로컬 실행 절차입니다. 현재 인증 관련 주요 Java 파일은 비어 있는 초기 단계이며, 애플리케이션 실행과 인증 동작 검증이 완료된 상태는 아닙니다.
 
-1. MySQL에 `deskin` 데이터베이스 생성
+1. PostgreSQL에 `deskin` 데이터베이스 생성
 2. 환경변수 설정 (또는 `application-local.yml`로 오버라이드)
 
    ```

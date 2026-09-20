@@ -1,5 +1,7 @@
 package com.deskin;
 
+import com.deskin.support.PostgresIntegrationTest;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -13,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-class SecurityFoundationTest {
+class SecurityFoundationTest extends PostgresIntegrationTest {
     @Autowired MockMvc mockMvc;
 
     @Test
