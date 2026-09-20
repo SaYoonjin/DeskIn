@@ -21,6 +21,7 @@ import com.deskin.auth.repository.UserRepository;
 import com.deskin.auth.service.AuthService;
 import com.deskin.global.exception.CustomException;
 import com.deskin.global.exception.ErrorCode;
+import com.deskin.global.exception.RefreshTokenReuseException;
 import com.deskin.seller.entity.Seller;
 import com.deskin.seller.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +73,37 @@ public class AuthServiceImpl implements AuthService {
         var response = new LoginResponse(jwtTokenProvider.createAccessToken(session),
                 session.getUser().getUserId(), session.getUser().getRole());
         return new TokenResult(response, refreshToken, session.getExpiresAt());
+    }
+
+    @Override
+    @Transactional(noRollbackFor = RefreshTokenReuseException.class)
+    public TokenResult refreshTokens(String refreshToken) {
+        // 원문 형식을 먼저 검증하고 해시로 로그인 세션 조회
+        if (!opaqueTokenProvider.isValidFormat(refreshToken)) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+        String tokenHash = opaqueTokenProvider.hashToken(refreshToken);
+        UUID sessionId = refreshTokenRepository.findSessionIdByTokenHash(tokenHash)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        // 토큰 엔티티를 읽기 전에 잠금을 획득해야 대기 중 변경된 사용 상태를 최신 값으로 읽는다.
+        LoginSession session = sessionRepository.findLockedById(sessionId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
+        RefreshToken token = refreshTokenRepository.findById(tokenHash)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
+        if (!session.isActive(clock.instant()) || !token.getExpiresAt().isAfter(clock.instant())) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        // 재사용 감지 시 예외 응답이어도 세션 폐기가 커밋되어야 한다.
+        if (token.getUsedAt() != null) {
+            session.revoke(clock.instant());
+            throw new RefreshTokenReuseException();
+        }
+
+        // 기존 토큰을 사용 처리하고 최초 세션 만료 시점을 유지한 채 새 토큰 발급
+        token.markUsed(clock.instant());
+        return createTokens(session);
     }
 
     @Override

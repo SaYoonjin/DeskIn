@@ -8,4 +8,5 @@ import com.deskin.auth.dto.SignupResponse;
 public interface AuthService {
     SignupResponse createUser(SignupRequest request);
     TokenResult authenticateUser(LoginRequest request);
+    TokenResult refreshTokens(String refreshToken);
 }

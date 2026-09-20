@@ -40,6 +40,17 @@
 
 ## CSRF 토큰
 
+## 토큰 갱신
+
+`POST /auth/refresh`: 본문과 Access Token은 필요하지 않다. Refresh Token 쿠키와 CSRF 헤더로 인증한다. 성공 시 200과 로그인과 같은 data, 메시지 `토큰이 갱신되었습니다.`를 반환하고 Refresh Token 쿠키를 교체한다.
+
+- 사용한 토큰을 보관하며 재사용 감지 시 해당 세션 전체를 폐기한다. 오류 응답이어도 폐기는 커밋된다.
+- 세션 행 잠금을 먼저 획득한 다음 토큰의 최신 사용 상태를 읽는다. 세션 만료 시점은 연장하지 않는다.
+- 프론트는 여러 탭을 포함하여 같은 세션의 갱신 요청을 직렬화해야 한다. 응답 유실 후 이전 토큰 재시도는 재로그인을 요구할 수 있다.
+- 누락·만료·폐기·잘못된 토큰은 INVALID_REFRESH_TOKEN, 재사용 감지는 REFRESH_TOKEN_REUSED로 401을 반환한다.
+
+## CSRF 요청 준비
+
 `GET /auth/csrf`는 JWT 없이 호출한다. `data.csrfToken`과 `data.headerName`을 반환하고 HttpOnly XSRF-TOKEN 쿠키를 설정한다. 가입·로그인·갱신·로그아웃 요청은 쿠키와 `X-XSRF-TOKEN` 헤더를 함께 전달한다. 브라우저 fetch에는 `credentials: 'include'`가 필요하다.
 
 ## 공통 오류 형식

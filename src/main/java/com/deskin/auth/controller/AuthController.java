@@ -28,6 +28,15 @@ public class AuthController {
         return ApiResponse.success("로그인 되었습니다.", result.response());
     }
 
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refreshTokens(
+            @CookieValue(name = RefreshCookieWriter.COOKIE_NAME, required = false) String refreshToken,
+            HttpServletResponse response) {
+        var result = authService.refreshTokens(refreshToken);
+        cookieWriter.writeCookie(response, result.refreshToken(), result.expiresAt());
+        return ApiResponse.success("토큰이 갱신되었습니다.", result.response());
+    }
+
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<SignupResponse> createUser(@Valid @RequestBody SignupRequest request) {

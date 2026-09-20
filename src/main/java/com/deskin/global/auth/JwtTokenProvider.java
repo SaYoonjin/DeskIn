@@ -34,7 +34,7 @@ public class JwtTokenProvider {
         if (expiresAt.isAfter(session.getExpiresAt())) {
             expiresAt = session.getExpiresAt();
         }
-        return Jwts.builder().subject(session.getUser().getUserId().toString())
+        return Jwts.builder().id(UUID.randomUUID().toString()).subject(session.getUser().getUserId().toString())
                 .claim("role", session.getUser().getRole().name()).claim("sessionId", session.getSessionId().toString())
                 .issuer(properties.issuer()).audience().add(properties.audience()).and()
                 .issuedAt(Date.from(now)).expiration(Date.from(expiresAt))

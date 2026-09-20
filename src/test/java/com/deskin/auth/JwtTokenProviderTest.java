@@ -23,6 +23,12 @@ class JwtTokenProviderTest extends AuthServiceTestSupport {
     }
 
     @Test
+    void issuesDifferentAccessTokensWithinSameSecond() {
+        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(300));
+        assertThat(jwtTokens.createAccessToken(session)).isNotEqualTo(jwtTokens.createAccessToken(session));
+    }
+
+    @Test
     void rejectsExpiredToken() {
         var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(604800));
         String token = jwtTokens.createAccessToken(session);
