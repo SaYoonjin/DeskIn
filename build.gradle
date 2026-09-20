@@ -56,7 +56,20 @@ dependencies {
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		excludeTags 'mysql'
+	}
+}
+
+tasks.register('mysqlTest', Test) {
+	description = 'Docker의 MySQL로 동시성 및 제약 조건을 검증합니다.'
+	group = 'verification'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform {
+		includeTags 'mysql'
+	}
+	shouldRunAfter tasks.named('test')
 }
 
 tasks.withType(JavaCompile).configureEach {

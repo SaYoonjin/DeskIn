@@ -19,6 +19,11 @@ spring:
     jdbc:
       initialize-schema: always
 
+auth:
+  session-duration: 7d
+  cookie-secure: true
+  allowed-origins: ${AUTH_ALLOWED_ORIGINS}
+
 ---
 spring:
   config:
@@ -31,8 +36,14 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-change-me}
-  access-token-expire-ms: 3600000 # 1h
+  secret: ${JWT_SECRET}
+  access-token-expire-ms: 900000
+  issuer: deskin
+  audience: deskin-web
+
+auth:
+  cookie-secure: false
+  allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:3000}
 
 toss:
   secret-key: ${TOSS_SECRET_KEY:}
@@ -52,7 +63,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expire-ms: 3600000
+  access-token-expire-ms: 900000
+  issuer: deskin
+  audience: deskin-web
 
 toss:
   secret-key: ${TOSS_SECRET_KEY}
