@@ -66,6 +66,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/logout").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/products", "/products/{productId:[0-9]+}").permitAll()
+                        .requestMatchers("/orders/**", "/payments/**").hasRole("BUYER")
+                        .requestMatchers("/seller/**").hasRole("SELLER")
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll());
         http.addFilterBefore(new JwtAuthenticationFilter(tokens, sessions, errorHandler),
                 UsernamePasswordAuthenticationFilter.class);

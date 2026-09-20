@@ -76,3 +76,34 @@
 - `./gradlew test`: Docker 없이 실행하는 단위 테스트.
 - `./gradlew postgresTest`: Docker가 필요한 Testcontainers PostgreSQL 테스트. Docker가 없으면 실패하며, 자동으로 건너뛰지 않는다.
 - Docker가 없는 환경에서는 단위 테스트를 통과하고 PostgreSQL 통합 테스트의 미실행 상태를 기록한 뒤 기능별 로컬 커밋한다. PostgreSQL 테스트를 다른 DB로 대체하지 않는다.
+
+
+## 도메인 개발자용 인증 계약
+
+```java
+@GetMapping("/orders/{orderId}")
+public OrderResponse getOrder(@AuthenticationPrincipal AuthPrincipal principal,
+                              @PathVariable Long orderId) {
+    return orderService.getOrder(principal.userId(), orderId);
+}
+```
+
+위 코드는 후속 도메인 구현을 위한 사용 예시다. 실제 주문 구현을 추가한 것은 아니다.
+
+- `AuthPrincipal`은 userId, role, sessionId를 제공한다. JWT 검증과 DB 세션 검증을 통과한 값이다.
+- 판매자 ID는 `SellerRepository.findByUserUserId(principal.userId())`로 조회한다.
+- 요청 본문에 전달된 사용자·판매자 ID를 소유권 근거로 사용하지 않는다.
+- 역할 허용과 소유권 검사는 별개다. 각 도메인 서비스에서 본인 데이터인지 검증한다.
+- BUYER는 `/orders/**`, `/payments/**`, SELLER는 `/seller/**`, ADMIN은 `/admin/**`에만 해당 역할로 접근한다. ADMIN도 구매자·판매자 권한을 상속하지 않는다.
+- 공개 조회는 GET `/products`, GET `/products/{숫자 ID}`만 허용한다. 나머지 미등록 경로와 Webhook은 기본 차단한다.
+
+## 프론트 요청 순서
+
+1. GET `/auth/csrf`를 credentials 포함으로 호출하고 반환된 토큰을 메모리에 보관한다.
+2. 가입·로그인 요청에 `X-XSRF-TOKEN` 헤더와 credentials를 포함한다.
+3. 로그인 응답의 Access Token을 메모리에 보관하고 도메인 요청에 Bearer 헤더로 전달한다.
+4. 새로고침 또는 ACCESS_TOKEN_EXPIRED 발생 시 `/auth/refresh`를 호출한다. 쿠키는 브라우저가 전달한다.
+5. 여러 탭의 갱신은 하나씩 수행한다. 갱신 401은 반복 재시도하지 않고 메모리 토큰을 지운 뒤 재로그인한다.
+6. 로그아웃은 유효한 Access Token과 CSRF 헤더를 보낸다. 성공 후 메모리 토큰을 지운다.
+
+운영에서는 같은 사이트와 HTTPS를 전제로 한다. CSRF·로그인 응답은 캐시하지 않으며 비밀번호·토큰을 로깅하지 않는다.

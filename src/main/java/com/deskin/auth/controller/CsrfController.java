@@ -1,6 +1,7 @@
 package com.deskin.auth.controller;
 
 import com.deskin.global.dto.ApiResponse;
+import com.deskin.auth.dto.CsrfResponse;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,6 +14,4 @@ public class CsrfController {
         return ApiResponse.success("요청 검증 토큰이 발급되었습니다.",
                 new CsrfResponse(token.getToken(), token.getHeaderName()));
     }
-
-    public record CsrfResponse(String csrfToken, String headerName) {}
 }
