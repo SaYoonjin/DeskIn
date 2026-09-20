@@ -26,6 +26,12 @@
 
 ## 오류
 
+## CSRF 토큰
+
+`GET /auth/csrf`는 JWT 없이 호출한다. `data.csrfToken`과 `data.headerName`을 반환하고 HttpOnly XSRF-TOKEN 쿠키를 설정한다. 가입·로그인·갱신·로그아웃 요청은 쿠키와 `X-XSRF-TOKEN` 헤더를 함께 전달한다. 브라우저 fetch에는 `credentials: 'include'`가 필요하다.
+
+## 공통 오류 형식
+
 ```json
 {"success":false,"message":"요청 값이 올바르지 않습니다.","error":{"code":"VALIDATION_FAILED","fieldErrors":[]}}
 ```
