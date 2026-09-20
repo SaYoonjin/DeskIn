@@ -8,6 +8,7 @@ import com.deskin.auth.entity.RefreshToken;
 import com.deskin.auth.repository.LoginSessionRepository;
 import com.deskin.auth.repository.RefreshTokenRepository;
 import com.deskin.global.auth.JwtTokenProvider;
+import com.deskin.global.auth.AuthPrincipal;
 import com.deskin.global.auth.OpaqueTokenProvider;
 import com.deskin.global.config.AuthProperties;
 import jakarta.annotation.PostConstruct;
@@ -136,5 +137,20 @@ public class AuthServiceImpl implements AuthService {
         }
         userRepository.flush();
         return new SignupResponse(user.getUserId(), user.getLoginId(), user.getRole());
+    }
+
+    @Override
+    @Transactional
+    public void revokeSession(AuthPrincipal principal) {
+        // 갱신과 같은 세션 잠금을 사용해 로그아웃 이후 유효한 토큰이 남지 않게 한다.
+        LoginSession session = sessionRepository.findLockedById(principal.sessionId())
+                .orElseThrow(() -> new CustomException(ErrorCode.SESSION_REVOKED));
+        if (!session.isActive(clock.instant()) || !session.getUser().getUserId().equals(principal.userId())
+                || session.getUser().getRole() != principal.role()) {
+            throw new CustomException(ErrorCode.SESSION_REVOKED);
+        }
+
+        // 현재 로그인 세션 폐기 — 연결된 모든 토큰은 다음 검증부터 거절된다.
+        session.revoke(clock.instant());
     }
 }

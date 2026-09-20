@@ -3,6 +3,8 @@ package com.deskin.auth.controller;
 import com.deskin.auth.dto.LoginRequest;
 import com.deskin.auth.dto.LoginResponse;
 import com.deskin.global.auth.RefreshCookieWriter;
+import com.deskin.global.auth.AuthPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.servlet.http.HttpServletResponse;
 import com.deskin.auth.dto.SignupRequest;
 import com.deskin.auth.dto.SignupResponse;
@@ -41,5 +43,13 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<SignupResponse> createUser(@Valid @RequestBody SignupRequest request) {
         return ApiResponse.success("회원가입이 완료되었습니다.", authService.createUser(request));
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> revokeSession(@AuthenticationPrincipal AuthPrincipal principal,
+                                           HttpServletResponse response) {
+        authService.revokeSession(principal);
+        cookieWriter.clearCookie(response);
+        return ApiResponse.success("로그아웃 되었습니다.");
     }
 }

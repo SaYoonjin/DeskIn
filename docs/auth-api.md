@@ -38,7 +38,17 @@
 - DB에는 Refresh Token 해시만 저장한다. 없는 아이디와 비밀번호 오류는 동일한 INVALID_CREDENTIALS 응답이다.
 - JWT 검증 후 DB의 세션 사용자·역할·만료·폐기 상태를 확인한다. JWT 비밀키는 최소 32바이트이며 환경변수 JWT_SECRET으로 주입한다.
 
-## CSRF 토큰
+## 로그아웃
+
+`POST /auth/logout`: 유효한 Bearer Access Token과 CSRF 헤더가 필요하고 본문은 없다. JWT의 sessionId로 현재 세션을 폐기하고 Refresh Token 쿠키를 삭제한다.
+
+```json
+{"success":true,"message":"로그아웃 되었습니다."}
+```
+
+- 성공은 200이며 data 필드는 생략한다. 이미 폐기되었거나 만료된 Access Token은 401이다.
+- Access Token 만료 시 갱신 후 로그아웃한다. 현재 기기의 세션만 종료하고 다른 기기에는 영향을 주지 않는다.
+- 갱신과 같은 행 잠금을 사용한다. 로그아웃 완료 이후 새 요청에서 기존 Access Token과 Refresh Token은 모두 거절된다. 이미 처리 중인 도메인 요청을 취소하지는 않는다.
 
 ## 토큰 갱신
 
