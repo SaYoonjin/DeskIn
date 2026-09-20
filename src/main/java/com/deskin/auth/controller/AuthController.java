@@ -1,5 +1,9 @@
 package com.deskin.auth.controller;
 
+import com.deskin.auth.dto.LoginRequest;
+import com.deskin.auth.dto.LoginResponse;
+import com.deskin.global.auth.RefreshCookieWriter;
+import jakarta.servlet.http.HttpServletResponse;
 import com.deskin.auth.dto.SignupRequest;
 import com.deskin.auth.dto.SignupResponse;
 import com.deskin.auth.service.AuthService;
@@ -14,6 +18,15 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final RefreshCookieWriter cookieWriter;
+
+    @PostMapping("/login")
+    public ApiResponse<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest request,
+                                                       HttpServletResponse response) {
+        var result = authService.authenticateUser(request);
+        cookieWriter.writeCookie(response, result.refreshToken(), result.expiresAt());
+        return ApiResponse.success("로그인 되었습니다.", result.response());
+    }
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)

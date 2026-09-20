@@ -1,6 +1,10 @@
 package com.deskin.global.config;
 
 import com.deskin.global.auth.SecurityErrorHandler;
+import com.deskin.global.auth.JwtAuthenticationFilter;
+import com.deskin.global.auth.JwtTokenProvider;
+import com.deskin.global.auth.SessionAuthenticator;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.deskin.global.exception.ErrorCode;
 import com.deskin.global.exception.ErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,11 +35,12 @@ import java.time.Clock;
 import java.util.List;
 
 @Configuration
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, JwtProperties.class})
 public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorHandler errorHandler,
-                                                   AuthProperties properties) throws Exception {
+                                                   AuthProperties properties, JwtTokenProvider tokens,
+                                                   SessionAuthenticator sessions) throws Exception {
         CookieCsrfTokenRepository csrfRepository = new CookieCsrfTokenRepository();
         csrfRepository.setCookieCustomizer(cookie -> cookie.path("/auth").httpOnly(true)
                 .secure(properties.cookieSecure()).sameSite("Lax"));
@@ -62,6 +67,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/logout").authenticated()
                         .anyRequest().denyAll());
+        http.addFilterBefore(new JwtAuthenticationFilter(tokens, sessions, errorHandler),
+                UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

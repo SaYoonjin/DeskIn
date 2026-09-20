@@ -12,6 +12,9 @@ import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.InjectMocks;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.util.List;
@@ -24,10 +27,11 @@ import static org.mockito.Mockito.*;
 class SignupServiceTest {
     @Mock UserRepository users;
     @Mock SellerRepository sellers;
-    final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(4);
+    @Spy PasswordEncoder encoder = new BCryptPasswordEncoder(4);
+    @InjectMocks AuthServiceImpl authService;
 
     private AuthServiceImpl service() {
-        return new AuthServiceImpl(users, sellers, encoder);
+        return authService;
     }
 
     private SignupRequest request(UserRole role, String storeName) {

@@ -24,7 +24,19 @@
 - 연락처는 공백·하이픈을 제거하고 선택적인 선행 + 및 숫자 8~15자리를 허용한다. 빈 값은 null이다.
 - 공개 가입 역할은 BUYER·SELLER뿐이다. 판매자 User와 Seller는 한 트랜잭션으로 생성한다.
 
-## 오류
+## 로그인
+
+`POST /auth/login`: JWT 불필요, CSRF 헤더 필요. 요청은 `id`, `password`다. 성공 시 200을 반환한다.
+
+```json
+{"success":true,"message":"로그인 되었습니다.","data":{"accessToken":"<JWT>","userId":12,"role":"BUYER"}}
+```
+
+- Access Token은 메모리에 보관하고 `Authorization: Bearer <JWT>`로 전달한다. 수명은 15분이며 세션의 남은 기간을 넘지 않는다.
+- Refresh Token은 본문이 아닌 `refreshToken` HttpOnly 쿠키로 전달한다. 운영에서는 Secure, SameSite=Lax, Path=/auth이며 Domain은 지정하지 않는다.
+- 세션은 최초 로그인부터 7일간 유지한다. 로그인마다 다른 세션을 만들며 기존 기기를 로그아웃시키지 않는다.
+- DB에는 Refresh Token 해시만 저장한다. 없는 아이디와 비밀번호 오류는 동일한 INVALID_CREDENTIALS 응답이다.
+- JWT 검증 후 DB의 세션 사용자·역할·만료·폐기 상태를 확인한다. JWT 비밀키는 최소 32바이트이며 환경변수 JWT_SECRET으로 주입한다.
 
 ## CSRF 토큰
 

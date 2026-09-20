@@ -1,5 +1,18 @@
 package com.deskin.auth.service.impl;
 
+import com.deskin.auth.dto.LoginRequest;
+import com.deskin.auth.dto.LoginResponse;
+import com.deskin.auth.dto.TokenResult;
+import com.deskin.auth.entity.LoginSession;
+import com.deskin.auth.entity.RefreshToken;
+import com.deskin.auth.repository.LoginSessionRepository;
+import com.deskin.auth.repository.RefreshTokenRepository;
+import com.deskin.global.auth.JwtTokenProvider;
+import com.deskin.global.auth.OpaqueTokenProvider;
+import com.deskin.global.config.AuthProperties;
+import jakarta.annotation.PostConstruct;
+import java.time.Clock;
+import java.util.UUID;
 import com.deskin.auth.dto.SignupRequest;
 import com.deskin.auth.dto.SignupResponse;
 import com.deskin.auth.entity.User;
@@ -21,6 +34,45 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LoginSessionRepository sessionRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final OpaqueTokenProvider opaqueTokenProvider;
+    private final AuthProperties authProperties;
+    private final Clock clock;
+    private String dummyPasswordHash;
+
+    @PostConstruct
+    public void initializeDummyPasswordHash() {
+        // 없는 아이디에도 비밀번호 해시 비교를 수행해 계정 존재 여부의 시간 차이를 줄인다.
+        dummyPasswordHash = passwordEncoder.encode(UUID.randomUUID().toString());
+    }
+
+    @Override
+    @Transactional
+    public TokenResult authenticateUser(LoginRequest request) {
+        // 사용자 조회 및 비밀번호 검증
+        User user = userRepository.findByLoginId(request.id()).orElse(null);
+        String passwordHash = user == null ? dummyPasswordHash : user.getPasswordHash();
+        boolean passwordMatches = passwordEncoder.matches(request.password(), passwordHash);
+        if (user == null || !passwordMatches) {
+            throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        // 기기별 로그인 세션 생성
+        LoginSession session = sessionRepository.save(new LoginSession(user,
+                clock.instant().plus(authProperties.sessionDuration())));
+        return createTokens(session);
+    }
+
+    private TokenResult createTokens(LoginSession session) {
+        String refreshToken = opaqueTokenProvider.createToken();
+        refreshTokenRepository.save(new RefreshToken(opaqueTokenProvider.hashToken(refreshToken),
+                session, clock.instant()));
+        var response = new LoginResponse(jwtTokenProvider.createAccessToken(session),
+                session.getUser().getUserId(), session.getUser().getRole());
+        return new TokenResult(response, refreshToken, session.getExpiresAt());
+    }
 
     @Override
     @Transactional
