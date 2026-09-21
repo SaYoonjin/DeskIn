@@ -1,4 +1,4 @@
-package com.deskin.global.auth;
+package com.deskin.auth.security;
 
 import com.deskin.auth.repository.LoginSessionRepository;
 import com.deskin.global.exception.CustomException;

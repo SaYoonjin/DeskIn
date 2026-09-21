@@ -1,4 +1,4 @@
-package com.deskin.global.auth;
+package com.deskin.auth.security;
 
 import com.deskin.auth.entity.UserRole;
 import java.security.Principal;

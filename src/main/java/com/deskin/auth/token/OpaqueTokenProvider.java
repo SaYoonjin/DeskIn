@@ -1,4 +1,4 @@
-package com.deskin.global.auth;
+package com.deskin.auth.token;
 
 import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;

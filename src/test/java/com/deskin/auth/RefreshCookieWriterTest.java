@@ -1,6 +1,6 @@
 package com.deskin.auth;
 
-import com.deskin.global.auth.RefreshCookieWriter;
+import com.deskin.auth.security.RefreshCookieWriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletResponse;
 import static org.assertj.core.api.Assertions.*;

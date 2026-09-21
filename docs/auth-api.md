@@ -2,6 +2,28 @@
 
 공통 개발·커밋·push·질문 규칙은 [CONTRIBUTING.md](../CONTRIBUTING.md)를 따른다.
 
+## 구현 구조와 책임
+
+인증 코드는 `com.deskin.auth` 도메인에 모은다. `global/auth` 패키지는 사용하지 않는다.
+
+- `auth/controller`: 요청 바인딩과 `@Valid` 입력 검증, 서비스 호출, `ApiResponse` 및 쿠키 응답 포장을 담당한다.
+- `auth/service`, `auth/service/impl`: 가입 조건·중복·자격 증명·Refresh Token·세션 검증과 DB 변경, 토큰 발급을 담당한다. 트랜잭션은 서비스에서 관리한다.
+- `auth/token`: `JwtTokenProvider`가 Access Token을 발급·검증하고, `OpaqueTokenProvider`가 Refresh Token을 생성·해시 처리한다.
+- `auth/security`: `AuthPrincipal`, `JwtAuthenticationFilter`, `SessionAuthenticator`, `RefreshCookieWriter`, `SecurityErrorHandler`가 요청 인증과 보안 응답을 담당한다.
+- `global/config/SecurityConfig`: 경로별 권한, CSRF, CORS 정책과 인증 필터를 연결한다.
+
+| 구현된 API | 컨트롤러 책임 | 검증·처리 담당 |
+| --- | --- | --- |
+| 회원가입 | 요청 DTO 검증, 201 응답 포장 | `AuthService.createUser`: 역할·판매자 정보·중복 검증 및 사용자 생성 |
+| 로그인 | 요청 DTO 검증, Access Token JSON과 Refresh Token 쿠키 응답 포장 | `AuthService.authenticateUser`: 자격 증명 검증, 세션 생성 및 토큰 발급 |
+| 토큰 갱신 | 쿠키 수신, 새 토큰 응답 포장 | `AuthService.refreshTokens`: 토큰·세션 검증, 재사용 감지 및 토큰 교체 |
+| 로그아웃 | 인증된 사용자 전달, 성공 후 쿠키 삭제와 응답 포장 | `AuthService.revokeSession`: 세션 검증 및 폐기 |
+| CSRF 조회 | Spring Security가 제공한 토큰을 응답 DTO로 포장 | Spring Security의 CSRF 처리: 토큰 생성·저장·검증 |
+
+쿠키는 HTTP 응답에 해당하므로 컨트롤러가 `RefreshCookieWriter`를 사용하며 서비스에는 `HttpServletResponse`를 전달하지 않는다. 로그인·갱신의 응답 포장은 `AuthController.createTokenResponse`로 통일한다. CSRF 조회는 별도 비즈니스 처리 없이 보안 프레임워크의 토큰을 전달한다.
+
+현재 상품·주문·결제·판매자·관리자·정산·웹훅 컨트롤러는 빈 파일이며 구현된 API가 아니다. 후속 구현에서도 컨트롤러는 요청 검증과 응답 포장을, 서비스는 세부 검증과 처리를 담당한다.
+
 ## 회원가입
 
 `POST /auth/signup`: JWT 불필요, CSRF 헤더 필요. 성공 시 201이며 자동 로그인하지 않는다.
@@ -81,10 +103,12 @@
 ## 도메인 개발자용 인증 계약
 
 ```java
+import com.deskin.auth.security.AuthPrincipal;
+
 @GetMapping("/orders/{orderId}")
-public OrderResponse getOrder(@AuthenticationPrincipal AuthPrincipal principal,
-                              @PathVariable Long orderId) {
-    return orderService.getOrder(principal.userId(), orderId);
+public ApiResponse<OrderResponse> getOrder(@AuthenticationPrincipal AuthPrincipal principal,
+                                           @PathVariable Long orderId) {
+    return ApiResponse.success("주문이 조회되었습니다.", orderService.getOrder(principal.userId(), orderId));
 }
 ```
 

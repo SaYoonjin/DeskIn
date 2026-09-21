@@ -1,5 +1,6 @@
-package com.deskin.global.auth;
+package com.deskin.auth.security;
 
+import com.deskin.auth.token.JwtTokenProvider;
 import com.deskin.global.exception.CustomException;
 import com.deskin.global.exception.ErrorCode;
 import jakarta.servlet.FilterChain;

@@ -1,7 +1,11 @@
 package com.deskin.auth;
 
 import com.deskin.auth.entity.UserRole;
-import com.deskin.global.auth.*;
+import com.deskin.auth.token.JwtTokenProvider;
+import com.deskin.auth.security.AuthPrincipal;
+import com.deskin.auth.security.JwtAuthenticationFilter;
+import com.deskin.auth.security.SessionAuthenticator;
+import com.deskin.auth.security.SecurityErrorHandler;
 import com.deskin.global.exception.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;

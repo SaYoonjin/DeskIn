@@ -1,7 +1,8 @@
 package com.deskin.auth;
 
 import com.deskin.auth.entity.*;
-import com.deskin.global.auth.*;
+import com.deskin.auth.security.AuthPrincipal;
+import com.deskin.auth.security.SessionAuthenticator;
 import com.deskin.global.exception.*;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package com.deskin.global.auth;
+package com.deskin.auth.security;
 
 import com.deskin.global.exception.ErrorCode;
 import com.deskin.global.exception.ErrorResponse;

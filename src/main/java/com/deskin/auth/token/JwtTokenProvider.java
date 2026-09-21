@@ -1,5 +1,6 @@
-package com.deskin.global.auth;
+package com.deskin.auth.token;
 
+import com.deskin.auth.security.AuthPrincipal;
 import com.deskin.auth.entity.LoginSession;
 import com.deskin.auth.entity.UserRole;
 import com.deskin.global.config.JwtProperties;

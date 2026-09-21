@@ -1,9 +1,9 @@
 package com.deskin.global.config;
 
-import com.deskin.global.auth.SecurityErrorHandler;
-import com.deskin.global.auth.JwtAuthenticationFilter;
-import com.deskin.global.auth.JwtTokenProvider;
-import com.deskin.global.auth.SessionAuthenticator;
+import com.deskin.auth.security.SecurityErrorHandler;
+import com.deskin.auth.security.JwtAuthenticationFilter;
+import com.deskin.auth.token.JwtTokenProvider;
+import com.deskin.auth.security.SessionAuthenticator;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.deskin.global.exception.ErrorCode;
 import com.deskin.global.exception.ErrorResponse;

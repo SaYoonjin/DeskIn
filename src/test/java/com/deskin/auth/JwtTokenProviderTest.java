@@ -1,7 +1,7 @@
 package com.deskin.auth;
 
 import com.deskin.auth.entity.*;
-import com.deskin.global.auth.JwtTokenProvider;
+import com.deskin.auth.token.JwtTokenProvider;
 import com.deskin.global.config.JwtProperties;
 import com.deskin.global.exception.*;
 import io.jsonwebtoken.Jwts;

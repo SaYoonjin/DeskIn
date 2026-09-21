@@ -1,4 +1,4 @@
-package com.deskin.global.auth;
+package com.deskin.auth.security;
 
 import com.deskin.global.config.AuthProperties;
 import jakarta.servlet.http.HttpServletResponse;

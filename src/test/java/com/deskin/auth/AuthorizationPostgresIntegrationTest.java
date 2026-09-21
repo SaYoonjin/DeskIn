@@ -2,7 +2,7 @@ package com.deskin.auth;
 
 import com.deskin.auth.entity.*;
 import com.deskin.auth.repository.UserRepository;
-import com.deskin.global.auth.AuthPrincipal;
+import com.deskin.auth.security.AuthPrincipal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
