@@ -52,6 +52,7 @@ LoginSession, 기기별 세션, rotation, usedAt, 재사용 탐지, 비관적 �
 
 - BCrypt 비밀번호 비교와 dummyPasswordHash를 유지한다. 없는 아이디와 잘못된 비밀번호는 모두 INVALID_CREDENTIALS.
 - Access Token은 15분, Refresh Token은 발급 후 7일(auth.refresh-token-duration).
+- JWT claim은 sub(userId), role, iss, aud, iat, exp만 포함한다. jti/sessionId는 발급하지 않는다. 같은 사용자·역할·발급 초에는 동일한 Access Token이 나올 수 있다.
 - DB에는 Refresh Token 해시만 저장하고 User를 직접 참조한다. 로그인마다 별도 토큰을 발급하지만 기기 정보나 세션을 관리하지 않는다.
 - 토큰은 JSON으로 반환하고 Set-Cookie는 사용하지 않는다.
 

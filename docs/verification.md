@@ -27,3 +27,7 @@ Docker 미설치로 통합 테스트는 미실행이며 실제 DB 동작 검증�
 - `./gradlew test`: 단위·MVC 테스트
 - `./gradlew postgresTest`: Docker 기반 PostgreSQL 테스트
 - `./gradlew bootJar`: 실행 JAR 빌드
+
+## JWT claim 정리
+
+`./gradlew test`: 37개 통과. JWT의 6개 claim만 발급하는지와 각각의 필수 claim 누락·잘못된 역할의 거절을 검증했다. jti 제거에 맞춰 토큰 문자열의 매 발급 고유성을 요구하던 테스트를 제거했다. NullPointerException catch는 제거하고 sub/role 누락은 명시적으로 IllegalArgumentException으로 처리한다.

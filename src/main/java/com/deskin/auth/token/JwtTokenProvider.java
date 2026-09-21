@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
-import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -32,7 +31,7 @@ public class JwtTokenProvider {
     public String createAccessToken(User user) {
         Instant now = clock.instant();
         Instant expiresAt = now.plusMillis(properties.accessTokenExpireMs());
-        return Jwts.builder().id(UUID.randomUUID().toString()).subject(user.getUserId().toString())
+        return Jwts.builder().subject(user.getUserId().toString())
                 .claim("role", user.getRole().name())
                 .issuer(properties.issuer()).audience().add(properties.audience()).and()
                 .issuedAt(Date.from(now)).expiration(Date.from(expiresAt))
@@ -48,15 +47,19 @@ public class JwtTokenProvider {
                 throw new IllegalArgumentException("허용되지 않은 서명 알고리즘입니다.");
             }
             Claims claims = signed.getPayload();
+            String role = claims.get("role", String.class);
+            if (claims.getSubject() == null || role == null) {
+                throw new IllegalArgumentException("사용자 클레임이 누락되었습니다.");
+            }
             Long userId = Long.valueOf(claims.getSubject());
             if (userId <= 0 || claims.getExpiration() == null || claims.getIssuedAt() == null
                     || claims.getIssuedAt().after(Date.from(clock.instant()))) {
                 throw new IllegalArgumentException("필수 클레임이 올바르지 않습니다.");
             }
-            return new AuthPrincipal(userId, UserRole.valueOf(claims.get("role", String.class)));
+            return new AuthPrincipal(userId, UserRole.valueOf(role));
         } catch (ExpiredJwtException exception) {
             throw new CustomException(ErrorCode.ACCESS_TOKEN_EXPIRED);
-        } catch (JwtException | IllegalArgumentException | NullPointerException exception) {
+        } catch (JwtException | IllegalArgumentException exception) {
             throw new CustomException(ErrorCode.INVALID_ACCESS_TOKEN);
         }
     }

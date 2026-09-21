@@ -18,7 +18,6 @@ class RefreshServiceTest extends AuthServiceTestSupport {
         var second = service.refreshAccessToken(raw);
         assertThat(jwtTokens.parseAccessToken(first.accessToken()).userId()).isEqualTo(12L);
         assertThat(jwtTokens.parseAccessToken(second.accessToken()).role()).isEqualTo(UserRole.BUYER);
-        assertThat(first.accessToken()).isNotEqualTo(second.accessToken());
         assertThat(token.getExpiresAt()).isEqualTo(clock.instant().plusSeconds(600));
         verify(refreshTokens, times(2)).findById(token.getTokenHash());
         verifyNoMoreInteractions(refreshTokens);
