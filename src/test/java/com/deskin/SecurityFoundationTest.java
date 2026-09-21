@@ -27,10 +27,10 @@ class SecurityFoundationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void rejectsAuthMutationWithoutOriginUsingCommonError() throws Exception {
+    void validatesAuthBodyWithoutOrigin() throws Exception {
         mockMvc.perform(post("/auth/signup"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
     @Test
@@ -48,7 +48,6 @@ class SecurityFoundationTest extends PostgresIntegrationTest {
         mockMvc.perform(options("/auth/signup").header("Origin", "https://untrusted.example")
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"))
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }
 }

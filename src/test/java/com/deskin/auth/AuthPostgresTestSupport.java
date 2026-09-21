@@ -19,7 +19,7 @@ abstract class AuthPostgresTestSupport extends PostgresIntegrationTest {
 
     String createAccount() throws Exception {
         String loginId = "u_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("id", loginId, "password", "Password123!",
                                 "name", "이름", "role", "BUYER", "email", loginId + "@example.com"))))
                 .andExpect(status().isCreated());
@@ -27,7 +27,7 @@ abstract class AuthPostgresTestSupport extends PostgresIntegrationTest {
     }
 
     MockHttpServletResponse login(String loginId) throws Exception {
-        return mockMvc.perform(post("/auth/login").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON)
+        return mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("id", loginId, "password", "Password123!"))))
                 .andExpect(status().isOk()).andReturn().getResponse();
     }

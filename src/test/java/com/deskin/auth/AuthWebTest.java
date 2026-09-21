@@ -6,7 +6,7 @@ import com.deskin.auth.entity.UserRole;
 import com.deskin.auth.service.AuthService;
 import com.deskin.auth.token.JwtTokenProvider;
 import com.deskin.auth.security.AuthPrincipal;
-import com.deskin.auth.security.SessionAuthenticator;
+import com.deskin.auth.repository.LoginSessionRepository;
 import com.deskin.auth.security.RefreshCookieWriter;
 import com.deskin.auth.security.SecurityErrorHandler;
 import com.deskin.global.config.SecurityConfig;
@@ -44,7 +44,7 @@ class AuthWebTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean AuthService authService;
     @MockBean JwtTokenProvider jwtTokens;
-    @MockBean SessionAuthenticator sessions;
+    @MockBean LoginSessionRepository sessions;
 
     @RestController
     static class Endpoints {
@@ -92,18 +92,18 @@ class AuthWebTest {
                 .andExpect(status().isOk()).andExpect(content().string("12"));
         mockMvc.perform(post("/orders/probe").header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk());
-        verify(sessions, times(2)).validateSession(principal);
+        verifyNoInteractions(sessions, authService);
     }
 
     @Test
     void signupReturnsAgreedEnvelopeAndValidatesInputBeforeService() throws Exception {
         when(authService.createUser(any())).thenReturn(new SignupResponse(12L, "buyer_1", UserRole.BUYER));
-        mockMvc.perform(post("/auth/signup").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":"buyer_1","password":"Password123!","name":"이름","role":"BUYER","email":"a@example.com"}
                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.userId").value(12))
                 .andExpect(jsonPath("$.data.id").value("buyer_1"));
-        mockMvc.perform(post("/auth/signup").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         verify(authService, times(1)).createUser(any());
     }
@@ -111,7 +111,7 @@ class AuthWebTest {
     @Test
     void loginKeepsRefreshTokenOutOfJsonAndSetsSecureCookie() throws Exception {
         when(authService.authenticateUser(any())).thenReturn(result());
-        var response = mockMvc.perform(post("/auth/login").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON)
+        var response = mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"id\":\"buyer_1\",\"password\":\"Password123!\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").doesNotExist()).andReturn().getResponse();
@@ -122,25 +122,20 @@ class AuthWebTest {
     @Test
     void refreshUsesCookieAndLogoutUsesVerifiedPrincipal() throws Exception {
         when(authService.refreshTokens("refresh-token")).thenReturn(result());
-        mockMvc.perform(post("/auth/refresh").header("Origin", "https://app.example.com")
+        mockMvc.perform(post("/auth/refresh")
                         .cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.message").value("토큰이 갱신되었습니다."));
         var principal = configureToken();
-        mockMvc.perform(post("/auth/logout").header("Origin", "https://app.example.com").header("Authorization", "Bearer valid"))
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(cookie().maxAge("refreshToken", 0));
         verify(authService).revokeSession(principal);
     }
 
     @Test
-    void removesCsrfEndpointAndRejectsMissingOrigin() throws Exception {
+    void doesNotExposeCsrfEndpoint() throws Exception {
         mockMvc.perform(get("/auth/csrf"))
                 .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist("XSRF-TOKEN"));
-        for (String path : new String[]{"/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout"}) {
-            mockMvc.perform(post(path))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
-        }
         verifyNoInteractions(authService);
     }
 
@@ -152,7 +147,7 @@ class AuthWebTest {
                 .andExpect(cookie().doesNotExist("JSESSIONID"));
         mockMvc.perform(options("/auth/login").header("Origin", "https://other.example")
                         .header("Access-Control-Request-Method", "POST"))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+                .andExpect(status().isForbidden());
     }
 
     private AuthPrincipal configureToken() {

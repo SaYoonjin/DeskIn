@@ -37,11 +37,14 @@ class JwtTokenProviderTest extends AuthServiceTestSupport {
     }
 
     @Test
-    void limitsAccessLifetimeToRemainingSessionTime() {
+    void keepsFifteenMinuteAccessLifetimeIndependentOfSession() {
         var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(30));
         String token = jwtTokens.createAccessToken(session);
         var later = new JwtTokenProvider(jwtProperties, Clock.offset(clock, Duration.ofSeconds(31)));
-        assertError(() -> later.parseAccessToken(token), ErrorCode.ACCESS_TOKEN_EXPIRED);
+        session.revoke(clock.instant());
+        assertThat(later.parseAccessToken(token).userId()).isEqualTo(12L);
+        var expired = new JwtTokenProvider(jwtProperties, Clock.offset(clock, Duration.ofMinutes(15).plusSeconds(1)));
+        assertError(() -> expired.parseAccessToken(token), ErrorCode.ACCESS_TOKEN_EXPIRED);
     }
 
     @Test

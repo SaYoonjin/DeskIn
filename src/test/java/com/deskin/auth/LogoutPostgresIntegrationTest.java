@@ -16,18 +16,25 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@org.springframework.context.annotation.Import(LogoutPostgresIntegrationTest.Endpoints.class)
 class LogoutPostgresIntegrationTest extends AuthPostgresTestSupport {
+    @org.springframework.web.bind.annotation.RestController
+    static class Endpoints {
+        @org.springframework.web.bind.annotation.GetMapping("/orders/logout-probe")
+        String getOrder() { return "ok"; }
+    }
+
     @Autowired LoginSessionRepository sessions;
     @Autowired JwtTokenProvider jwtTokens;
     @Autowired AuthService authService;
     @Autowired JwtProperties jwtProperties;
 
     @Test
-    void immediatelyRejectsBothTokensButKeepsOtherDeviceLoggedIn() throws Exception {
+    void revokesSessionAndRefreshTokenButKeepsOtherDeviceLoggedIn() throws Exception {
         String loginId = createAccount();
         var first = login(loginId);
         var second = login(loginId);
-        var response = mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:3000")
+        var response = mockMvc.perform(post("/auth/logout")
                         .header("Authorization", "Bearer " + accessToken(first)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.message").value("로그아웃 되었습니다."))
                 .andExpect(jsonPath("$.data").doesNotExist()).andReturn().getResponse();
@@ -35,21 +42,25 @@ class LogoutPostgresIntegrationTest extends AuthPostgresTestSupport {
         assertThat(response.getCookie(RefreshCookieWriter.COOKIE_NAME).getPath()).isEqualTo("/auth");
         assertThat(sessions.findById(jwtTokens.parseAccessToken(accessToken(first)).sessionId()).orElseThrow().getRevokedAt()).isNotNull();
 
-        mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:3000").header("Authorization", "Bearer " + accessToken(first)))
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/orders/logout-probe")
+                        .header("Authorization", "Bearer " + accessToken(first)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer " + accessToken(first)))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("SESSION_REVOKED"));
-        mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000").cookie(first.getCookie(RefreshCookieWriter.COOKIE_NAME)))
+        mockMvc.perform(post("/auth/refresh").cookie(first.getCookie(RefreshCookieWriter.COOKIE_NAME)))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000").cookie(second.getCookie(RefreshCookieWriter.COOKIE_NAME)))
+        mockMvc.perform(post("/auth/refresh").cookie(second.getCookie(RefreshCookieWriter.COOKIE_NAME)))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void requiresBearerTokenAndOrigin() throws Exception {
-        mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:3000"))
+    void requiresBearerTokenWithoutOrigin() throws Exception {
+        mockMvc.perform(post("/auth/logout"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("INVALID_ACCESS_TOKEN"));
         var login = login(createAccount());
         mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer " + accessToken(login)))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -59,12 +70,12 @@ class LogoutPostgresIntegrationTest extends AuthPostgresTestSupport {
         var session = sessions.findById(principal.sessionId()).orElseThrow();
         String expired = new JwtTokenProvider(jwtProperties, Clock.offset(Clock.systemUTC(), Duration.ofHours(-1)))
                 .createAccessToken(session);
-        mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:3000").header("Authorization", "Bearer " + expired))
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer " + expired))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("ACCESS_TOKEN_EXPIRED"));
-        var renewed = mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000")
+        var renewed = mockMvc.perform(post("/auth/refresh")
                         .cookie(login.getCookie(RefreshCookieWriter.COOKIE_NAME)))
                 .andExpect(status().isOk()).andReturn().getResponse();
-        mockMvc.perform(post("/auth/logout").header("Origin", "http://localhost:3000").header("Authorization", "Bearer " + accessToken(renewed)))
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer " + accessToken(renewed)))
                 .andExpect(status().isOk());
     }
 

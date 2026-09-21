@@ -8,7 +8,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,7 +19,6 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider tokens;
-    private final SessionAuthenticator sessions;
     private final SecurityErrorHandler errors;
 
     @Override
@@ -40,7 +38,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     throw new CustomException(ErrorCode.INVALID_ACCESS_TOKEN);
                 }
                 AuthPrincipal principal = tokens.parseAccessToken(header.substring(7));
-                sessions.validateSession(principal);
                 var authentication = new UsernamePasswordAuthenticationToken(principal, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name())));
                 var context = SecurityContextHolder.createEmptyContext();
@@ -49,9 +46,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             } catch (CustomException exception) {
                 SecurityContextHolder.clearContext();
                 errors.writeError(response, exception.getErrorCode());
-                return;
-            } catch (DataAccessException exception) {
-                errors.writeError(response, ErrorCode.INTERNAL_SERVER_ERROR);
                 return;
             }
         }

@@ -9,8 +9,8 @@
 - `auth/controller`: 요청 바인딩과 `@Valid` 입력 검증, 서비스 호출, `ApiResponse` 및 쿠키 응답 포장을 담당한다.
 - `auth/service`, `auth/service/impl`: 가입 조건·중복·자격 증명·Refresh Token·세션 검증과 DB 변경, 토큰 발급을 담당한다. 트랜잭션은 서비스에서 관리한다.
 - `auth/token`: `JwtTokenProvider`가 Access Token을 발급·검증하고, `OpaqueTokenProvider`가 Refresh Token을 생성·해시 처리한다.
-- `auth/security`: `AuthPrincipal`, `JwtAuthenticationFilter`, `SessionAuthenticator`, `RefreshCookieWriter`, `SecurityErrorHandler`, `AuthOriginFilter`가 요청 인증과 보안 응답을 담당한다.
-- `global/config/SecurityConfig`: 경로별 권한, Origin 검증, CORS 정책과 인증 필터를 연결한다.
+- `auth/security`: `AuthPrincipal`, `JwtAuthenticationFilter`, `RefreshCookieWriter`, `SecurityErrorHandler`가 요청 인증과 보안 응답을 담당한다.
+- `global/config/SecurityConfig`: 경로별 권한, 브라우저 연동용 CORS 설정과 인증 필터를 연결한다.
 
 | 구현된 API | 컨트롤러 책임 | 검증·처리 담당 |
 | --- | --- | --- |
@@ -25,7 +25,7 @@
 
 ## 회원가입
 
-`POST /auth/signup`: JWT 불필요, 허용된 Origin 필요. 성공 시 201이며 자동 로그인하지 않는다.
+`POST /auth/signup`: JWT 불필요. 성공 시 201이며 자동 로그인하지 않는다.
 
 요청: `id`, `password`, `name`, `role`, `email` 필수. `phone` 선택. SELLER는 `storeName` 필수이고 BUYER에는 허용하지 않는다.
 
@@ -47,48 +47,47 @@
 
 ## 로그인
 
-`POST /auth/login`: JWT 불필요, 허용된 Origin 필요. 요청은 `id`, `password`다. 성공 시 200을 반환한다.
+`POST /auth/login`: JWT 불필요. 요청은 `id`, `password`다. 성공 시 200을 반환한다.
 
 ```json
 {"success":true,"message":"로그인 되었습니다.","data":{"accessToken":"<JWT>","userId":12,"role":"BUYER"}}
 ```
 
-- Access Token은 메모리에 보관하고 `Authorization: Bearer <JWT>`로 전달한다. 수명은 15분이며 세션의 남은 기간을 넘지 않는다.
+- Access Token은 메모리에 보관하고 `Authorization: Bearer <JWT>`로 전달한다. 수명은 15분이며 일반 API에서는 JWT 서명·만료·클레임만 검증한다.
 - Refresh Token은 본문이 아닌 `refreshToken` HttpOnly 쿠키로 전달한다. 운영에서는 Secure, SameSite=Lax, Path=/auth이며 Domain은 지정하지 않는다.
 - 세션은 최초 로그인부터 7일간 유지한다. 로그인마다 다른 세션을 만들며 기존 기기를 로그아웃시키지 않는다.
 - DB에는 Refresh Token 해시만 저장한다. 없는 아이디와 비밀번호 오류는 동일한 INVALID_CREDENTIALS 응답이다.
-- JWT 검증 후 DB의 세션 사용자·역할·만료·폐기 상태를 확인한다. JWT 비밀키는 최소 32바이트이며 환경변수 JWT_SECRET으로 주입한다.
+- 일반 API 인증 시 DB 세션은 조회하지 않는다. Refresh/Logout에서만 서비스가 DB 세션의 사용자·역할·만료·폐기 상태를 확인한다. JWT 비밀키는 최소 32바이트이며 환경변수 JWT_SECRET으로 주입한다.
 
 ## 로그아웃
 
-`POST /auth/logout`: 유효한 Bearer Access Token과 허용된 Origin가 필요하고 본문은 없다. JWT의 sessionId로 현재 세션을 폐기하고 Refresh Token 쿠키를 삭제한다.
+`POST /auth/logout`: 유효한 Bearer Access Token이 필요하고 본문은 없다. JWT의 sessionId로 현재 세션을 폐기하고 Refresh Token 쿠키를 삭제한다.
 
 ```json
 {"success":true,"message":"로그아웃 되었습니다."}
 ```
 
-- 성공은 200이며 data 필드는 생략한다. 이미 폐기되었거나 만료된 Access Token은 401이다.
+- 성공은 200이며 data 필드는 생략한다. DB 세션이 이미 폐기되었거나 Access Token이 만료된 경우 401이다.
 - Access Token 만료 시 갱신 후 로그아웃한다. 현재 기기의 세션만 종료하고 다른 기기에는 영향을 주지 않는다.
-- 갱신과 같은 행 잠금을 사용한다. 로그아웃 완료 이후 새 요청에서 기존 Access Token과 Refresh Token은 모두 거절된다. 이미 처리 중인 도메인 요청을 취소하지는 않는다.
+- 갱신과 같은 행 잠금을 사용한다. 로그아웃 후 Refresh Token은 거절된다. 기존 Access Token은 만료까지 일반 API에서 사용할 수 있으므로 프론트는 로그아웃 성공 시 메모리의 Access Token을 삭제한다.
 
 ## 토큰 갱신
 
-`POST /auth/refresh`: 본문과 Access Token은 필요하지 않다. Refresh Token 쿠키로 인증하고 Origin을 검증한다. 성공 시 200과 로그인과 같은 data, 메시지 `토큰이 갱신되었습니다.`를 반환하고 Refresh Token 쿠키를 교체한다.
+`POST /auth/refresh`: 본문과 Access Token은 필요하지 않다. Refresh Token 쿠키와 연결된 LoginSession을 DB에서 확인한다. 성공 시 200과 로그인과 같은 data, 메시지 `토큰이 갱신되었습니다.`를 반환하고 Refresh Token 쿠키를 교체한다.
 
 - 사용한 토큰을 보관하며 재사용 감지 시 해당 세션 전체를 폐기한다. 오류 응답이어도 폐기는 커밋된다.
 - 세션 행 잠금을 먼저 획득한 다음 토큰의 최신 사용 상태를 읽는다. 세션 만료 시점은 연장하지 않는다.
 - 프론트는 여러 탭을 포함하여 같은 세션의 갱신 요청을 직렬화해야 한다. 응답 유실 후 이전 토큰 재시도는 재로그인을 요구할 수 있다.
 - 누락·만료·폐기·잘못된 토큰은 INVALID_REFRESH_TOKEN, 재사용 감지는 REFRESH_TOKEN_REUSED로 401을 반환한다.
 
-## 요청 출처 검증
+## 최소 인증 구조
 
-별도 CSRF API, XSRF-TOKEN 쿠키, X-XSRF-TOKEN 헤더는 사용하지 않는다. 인증 POST 요청은 `Origin`이 `auth.allowed-origins`의 주소와 정확히 일치해야 한다. 프론트와 API가 같은 출처여도 실제 프론트 주소를 허용 목록에 등록한다.
-
-브라우저는 Origin을 자동으로 전송한다. 쿠키 전송을 위해 fetch에 `credentials: 'include'`를 지정한다. Postman·curl은 허용된 Origin 헤더를 직접 지정해야 한다. 누락·null·중복·허용되지 않은 Origin은 403으로 차단하며, Referer나 Host 헤더로 우회하지 않는다. CORS에서 먼저 차단하면 ACCESS_DENIED, 인증 출처 필터에서 차단하면 INVALID_REQUEST_ORIGIN을 반환한다.
-
-[OWASP 요청 출처 검증 지침](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#verifying-the-origin-with-standard-headers)을 참고하여 허용 목록과 정확히 비교하고 출처 없는 요청을 차단한다.
-
-Refresh Token의 HttpOnly·Secure(운영)·SameSite=Lax·Path=/auth 정책은 유지한다. Origin 검증은 사용자 인증을 대신하지 않으며 기존 JWT·Refresh Token·세션 검증도 계속 적용한다.
+- Access Token: 15분 JWT, Authorization Bearer 헤더. 일반 API는 JWT만 검사하며 인증을 위한 DB 세션 조회는 없다.
+- Refresh Token: HttpOnly 쿠키, DB LoginSession과 연결. 갱신·로그아웃 서비스에서 세션 확인.
+- CSRF 토큰·API·쿠키, Origin 검증 필터, SessionAuthenticator, 커스텀 CORS 필터는 제거했다.
+- JWT 인증 필터 하나와 Spring Security 기본 CORS 설정만 사용한다. 별도 Origin 헤더 요구는 없다. 브라우저의 교차 출처 요청을 위해 auth.allowed-origins와 credentials 설정은 유지한다.
+- Refresh Token 쿠키만 사용한다. HttpOnly·Secure(운영)·SameSite=Lax·Path=/auth 속성은 유지한다.
+- 로그아웃이나 역할 변경은 기존 Access Token에 즉시 반영되지 않으며 만료 또는 새 토큰 발급 후 반영된다.
 
 ## 공통 오류 형식
 
@@ -96,7 +95,7 @@ Refresh Token의 HttpOnly·Secure(운영)·SameSite=Lax·Path=/auth 정책은 �
 {"success":false,"message":"요청 값이 올바르지 않습니다.","error":{"code":"VALIDATION_FAILED","fieldErrors":[]}}
 ```
 
-400 입력 오류, 401 인증 오류, 403 권한·요청 출처 오류, 409 중복 아이디·이메일. ErrorCode가 코드·HTTP 상태·기본 메시지를 관리한다.
+400 입력 오류, 401 인증 오류, 403 권한 오류, 409 중복 아이디·이메일. ErrorCode가 코드·HTTP 상태·기본 메시지를 관리한다. Spring Security 기본 CORS 거절 응답은 프레임워크의 403 응답을 사용한다.
 
 ## 검증 실행
 
@@ -119,7 +118,7 @@ public ApiResponse<OrderResponse> getOrder(@AuthenticationPrincipal AuthPrincipa
 
 위 코드는 후속 도메인 구현을 위한 사용 예시다. 실제 주문 구현을 추가한 것은 아니다.
 
-- `AuthPrincipal`은 userId, role, sessionId를 제공한다. JWT 검증과 DB 세션 검증을 통과한 값이다.
+- `AuthPrincipal`은 userId, role, sessionId를 제공한다. JWT 검증을 통과한 값이며 일반 API에서 DB 세션의 현재 상태를 보장하지 않는다.
 - 판매자 ID는 `SellerRepository.findByUserUserId(principal.userId())`로 조회한다.
 - 요청 본문에 전달된 사용자·판매자 ID를 소유권 근거로 사용하지 않는다.
 - 역할 허용과 소유권 검사는 별개다. 각 도메인 서비스에서 본인 데이터인지 검증한다.

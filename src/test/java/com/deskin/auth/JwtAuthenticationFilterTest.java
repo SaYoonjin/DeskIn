@@ -4,7 +4,6 @@ import com.deskin.auth.entity.UserRole;
 import com.deskin.auth.token.JwtTokenProvider;
 import com.deskin.auth.security.AuthPrincipal;
 import com.deskin.auth.security.JwtAuthenticationFilter;
-import com.deskin.auth.security.SessionAuthenticator;
 import com.deskin.auth.security.SecurityErrorHandler;
 import com.deskin.global.exception.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,8 +17,7 @@ import static org.mockito.Mockito.*;
 
 class JwtAuthenticationFilterTest {
     JwtTokenProvider tokens = mock(JwtTokenProvider.class);
-    SessionAuthenticator sessions = mock(SessionAuthenticator.class);
-    JwtAuthenticationFilter filter = new JwtAuthenticationFilter(tokens, sessions, new SecurityErrorHandler(new ObjectMapper()));
+    JwtAuthenticationFilter filter = new JwtAuthenticationFilter(tokens, new SecurityErrorHandler(new ObjectMapper()));
 
     @AfterEach
     void clearContext() {
@@ -27,7 +25,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void providesPrincipalOnlyAfterValidatingSession() throws Exception {
+    void providesPrincipalFromJwtOnly() throws Exception {
         var principal = new AuthPrincipal(12L, UserRole.BUYER, UUID.randomUUID());
         when(tokens.parseAccessToken("token")).thenReturn(principal);
         var request = new MockHttpServletRequest("GET", "/orders/1");
@@ -37,7 +35,7 @@ class JwtAuthenticationFilterTest {
             assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
                     .extracting("authority").containsExactly("ROLE_BUYER");
         });
-        verify(sessions).validateSession(principal);
+        verify(tokens).parseAccessToken("token");
     }
 
     @Test
@@ -53,27 +51,12 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void rejectsRevokedSessionBeforeDomainController() throws Exception {
-        var principal = new AuthPrincipal(12L, UserRole.BUYER, UUID.randomUUID());
-        when(tokens.parseAccessToken("token")).thenReturn(principal);
-        doThrow(new CustomException(ErrorCode.SESSION_REVOKED)).when(sessions).validateSession(principal);
-        var request = new MockHttpServletRequest("GET", "/orders/1");
-        request.addHeader("Authorization", "Bearer token");
-        var response = new MockHttpServletResponse();
-        var chain = new MockFilterChain();
-        filter.doFilter(request, response, chain);
-        assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getContentAsString()).contains("SESSION_REVOKED");
-        assertThat(chain.getRequest()).isNull();
-    }
-
-    @Test
     void refreshDoesNotDependOnExpiredAccessToken() throws Exception {
         var request = new MockHttpServletRequest("POST", "/auth/refresh");
         request.addHeader("Authorization", "Bearer expired");
         var chain = new MockFilterChain();
         filter.doFilter(request, new MockHttpServletResponse(), chain);
-        verifyNoInteractions(tokens, sessions);
+        verifyNoInteractions(tokens);
         assertThat(chain.getRequest()).isNotNull();
     }
 }

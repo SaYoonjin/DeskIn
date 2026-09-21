@@ -32,9 +32,6 @@ public class JwtTokenProvider {
     public String createAccessToken(LoginSession session) {
         Instant now = clock.instant();
         Instant expiresAt = now.plusMillis(properties.accessTokenExpireMs());
-        if (expiresAt.isAfter(session.getExpiresAt())) {
-            expiresAt = session.getExpiresAt();
-        }
         return Jwts.builder().id(UUID.randomUUID().toString()).subject(session.getUser().getUserId().toString())
                 .claim("role", session.getUser().getRole().name()).claim("sessionId", session.getSessionId().toString())
                 .issuer(properties.issuer()).audience().add(properties.audience()).and()

@@ -16,7 +16,6 @@ public enum ErrorCode {
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 갱신 토큰입니다."),
     REFRESH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "갱신 토큰이 재사용되어 로그인이 종료되었습니다."),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
-    INVALID_REQUEST_ORIGIN(HttpStatus.FORBIDDEN, "허용되지 않은 요청 출처입니다."),
     DUPLICATE_LOGIN_ID(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다."),
     DUPLICATE_EMAIL(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");

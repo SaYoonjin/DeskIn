@@ -30,7 +30,7 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void createsNormalizedBuyerWithoutSeller() throws Exception {
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":" Buyer_1 ","password":"Password123!","name":" 홍길동 ",
                  "role":"BUYER","email":" Buyer@Example.com ","phone":"010-1234-5678"}
                 """))
@@ -47,7 +47,7 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void createsSellerAndAllowsMissingPhone() throws Exception {
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":"seller_1","password":"Password123!","name":"판매자",
                  "role":"SELLER","email":"seller@example.com","storeName":" 데스크인 "}
                 """))
@@ -61,7 +61,7 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
     void rejectsInvalidRoleAndSellerFields() throws Exception {
         for (String fields : new String[]{"\"role\":\"ADMIN\"", "\"role\":\"SELLER\"",
                 "\"role\":\"BUYER\",\"storeName\":\"상점\""}) {
-            mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON)
+            mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"id\":\"user_1\",\"password\":\"Password123!\",\"name\":\"이름\",\"email\":\"a@example.com\"," + fields + "}"))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
         }
@@ -73,28 +73,28 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
         String request = """
                 {"id":"unique_1","password":"Password123!","name":"이름","role":"BUYER","email":"unique@example.com"}
                 """;
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content(request))
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isCreated());
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content(request))
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_LOGIN_ID"));
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                         .content(request.replace("unique_1", "unique_2")))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.error.code").value("DUPLICATE_EMAIL"));
     }
 
     @Test
     void rejectsPasswordOverByteLimitAndInvalidJson() throws Exception {
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":"user_1","password":"%s","name":"이름","role":"BUYER","email":"a@example.com"}
                 """.formatted("한".repeat(25))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.fieldErrors[0].field").value("password"));
-        mockMvc.perform(post("/auth/signup").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON).content("{"))
+        mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 
     @Test
-    void rejectsMissingOrigin() throws Exception {
+    void validatesBodyWithoutOrigin() throws Exception {
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
     }
 }
