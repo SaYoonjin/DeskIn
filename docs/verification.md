@@ -31,3 +31,7 @@ Docker 미설치로 통합 테스트는 미실행이며 실제 DB 동작 검증�
 ## JWT claim 정리
 
 `./gradlew test`: 37개 통과. JWT의 6개 claim만 발급하는지와 각각의 필수 claim 누락·잘못된 역할의 거절을 검증했다. jti 제거에 맞춰 토큰 문자열의 매 발급 고유성을 요구하던 테스트를 제거했다. NullPointerException catch는 제거하고 sub/role 누락은 명시적으로 IllegalArgumentException으로 처리한다.
+
+## JWT 인증 필터 정리
+
+`./gradlew test`: 38개 통과. 인증 제외 경로 4개를 static final Set으로 관리한다. 컨텍스트 경로 유무에 따른 제외 처리 및 Authorization 헤더 누락 시 다음 필터로 넘기는 동작을 검증했다. 기존 MVC 테스트의 401/403 응답과 DB 조회 없는 JWT 인증도 통과했다. AuthPrincipal과 SecurityErrorHandler 구조는 유지했다. PostgreSQL 통합 테스트는 Docker 미설치로 미실행이다.

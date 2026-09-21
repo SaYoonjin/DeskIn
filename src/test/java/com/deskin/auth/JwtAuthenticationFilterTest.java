@@ -50,12 +50,30 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void refreshDoesNotDependOnExpiredAccessToken() throws Exception {
-        var request = new MockHttpServletRequest("POST", "/auth/refresh");
-        request.addHeader("Authorization", "Bearer expired");
+    void authEndpointsDoNotDependOnAccessTokenIncludingWithContextPath() throws Exception {
+        for (String contextPath : new String[]{"", "/app"}) {
+            for (String path : new String[]{"/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout"}) {
+                var request = new MockHttpServletRequest("POST", contextPath + path);
+                request.setContextPath(contextPath);
+                request.addHeader("Authorization", "Bearer expired");
+                var chain = new MockFilterChain();
+                filter.doFilter(request, new MockHttpServletResponse(), chain);
+                assertThat(chain.getRequest()).isNotNull();
+            }
+        }
+        verifyNoInteractions(tokens);
+    }
+
+    @Test
+    void missingAuthorizationContinuesWithoutReturningUnauthorized() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/orders/1");
+        var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
-        filter.doFilter(request, new MockHttpServletResponse(), chain);
+        filter.doFilter(request, response, chain);
         verifyNoInteractions(tokens);
         assertThat(chain.getRequest()).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).isEmpty();
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 }

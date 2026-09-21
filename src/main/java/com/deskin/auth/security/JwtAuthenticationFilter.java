@@ -18,6 +18,9 @@ import java.util.Set;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Set<String> AUTHENTICATION_EXCLUDED_PATHS = Set.of(
+            "/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout");
+
     private final JwtTokenProvider tokens;
     private final SecurityErrorHandler errors;
 
@@ -25,7 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         // 갱신과 로그아웃은 Access Token 만료 여부와 관계없이 본문의 Refresh Token으로 처리한다.
-        return Set.of("/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout").contains(path);
+        return AUTHENTICATION_EXCLUDED_PATHS.contains(path);
     }
 
     @Override
