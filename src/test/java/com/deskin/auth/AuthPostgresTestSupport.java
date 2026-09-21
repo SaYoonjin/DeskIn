@@ -21,7 +21,7 @@ abstract class AuthPostgresTestSupport extends PostgresIntegrationTest {
         String loginId = "u_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("id", loginId, "password", "Password123!",
-                                "name", "이름", "role", "BUYER", "email", loginId + "@example.com"))))
+                                "name", "이름", "phone", "010-1234-5678", "role", "BUYER", "email", loginId + "@example.com"))))
                 .andExpect(status().isCreated());
         return loginId;
     }

@@ -99,7 +99,7 @@ com.deskin
 | POST | `/auth/refresh` | Refresh Token 쿠키 + DB 세션 확인 |
 | POST | `/auth/logout` | Bearer Access Token + DB 세션 확인 |
 
-첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 Bearer 헤더 기준 필요로 정정했습니다. 현재 판매자 storeName과 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
+첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 Bearer 헤더 기준 필요로 정정했습니다. 회원가입 응답은 userId·name·role이며 판매자의 가게 설정은 가입 이후로 분리합니다. 현재 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
 
 공개 상품 목록·숫자 ID 상세 GET은 비회원도 접근할 수 있습니다. 주문·결제는 BUYER, `/seller/**`는 SELLER, `/admin/**`는 ADMIN만 접근합니다. 권한 상속은 없으며 Webhook은 별도 검증 정책 확정 전까지 차단합니다. 해당 도메인 API의 실제 비즈니스 구현은 후속 작업입니다.
 

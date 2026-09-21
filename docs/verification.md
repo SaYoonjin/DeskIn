@@ -20,3 +20,12 @@ DB 기준: PostgreSQL. 통합 테스트는 PostgreSQL Testcontainers를 사용�
 - 기본 CORS의 허용 출처·preflight 동작을 검증한다. 커스텀 CORS 필터는 사용하지 않는다.
 
 PostgreSQL 통합 테스트는 Docker 미설치로 미실행이다. 테스트 소스 컴파일과 단위 테스트 성공을 실제 DB 검증 성공으로 간주하지 않는다.
+
+## 회원가입 계약 변경 검증
+
+- `./gradlew test`: 40개 통과, 실패 0, 건너뜀 0. PostgreSQL 통합 테스트 소스 컴파일 성공.
+- 회원가입 응답의 name 포함 및 id 제외, phone 누락·null·공백·형식 오류 거절을 검증했다.
+- SELLER 가입 시 가게 이름 없이 판매자 프로필을 생성하고 BUYER는 판매자 프로필을 생성하지 않는다.
+- 로그인은 기존 id/password 요청을 유지한다.
+- 기존 DB의 sellers.store_name NOT NULL 해제 SQL을 docs/migrations에 준비했다. 실제 DB에는 적용하지 않았다.
+- Docker 미설치로 PostgreSQL 통합 테스트는 미실행.

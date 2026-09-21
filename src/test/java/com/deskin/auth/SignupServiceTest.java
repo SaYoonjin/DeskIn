@@ -34,16 +34,16 @@ class SignupServiceTest {
         return authService;
     }
 
-    private SignupRequest request(UserRole role, String storeName) {
+    private SignupRequest request(UserRole role) {
         return new SignupRequest(" Buyer_1 ", "Password123!", " 이름 ", "010-1234-5678",
-                role, " User@Example.com ", storeName);
+                role, " User@Example.com ");
     }
 
     @Test
     void normalizesAndHashesBuyerWithoutCreatingSeller() {
         when(users.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var result = service().createUser(request(UserRole.BUYER, null));
-        assertThat(result.id()).isEqualTo("buyer_1");
+        var result = service().createUser(request(UserRole.BUYER));
+        assertThat(result.name()).isEqualTo("이름");
         verify(users).save(argThat(user -> user.getName().equals("이름")
                 && user.getEmail().equals("user@example.com") && user.getPhone().equals("01012345678")
                 && encoder.matches("Password123!", user.getPasswordHash())));
@@ -53,30 +53,28 @@ class SignupServiceTest {
     @Test
     void createsSellerLinkedToNewUser() {
         when(users.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        service().createUser(request(UserRole.SELLER, " 상점 "));
-        verify(sellers).save(argThat(seller -> seller.getStoreName().equals("상점")
+        service().createUser(request(UserRole.SELLER));
+        verify(sellers).save(argThat(seller -> seller.getStoreName() == null
                 && seller.getUser().getRole() == UserRole.SELLER));
     }
 
     @Test
     void rejectsDuplicateIdBeforeSaving() {
         when(users.existsByLoginId("buyer_1")).thenReturn(true);
-        assertError(() -> service().createUser(request(UserRole.BUYER, null)), ErrorCode.DUPLICATE_LOGIN_ID);
+        assertError(() -> service().createUser(request(UserRole.BUYER)), ErrorCode.DUPLICATE_LOGIN_ID);
         verify(users, never()).save(any());
     }
 
     @Test
     void rejectsDuplicateEmailBeforeSaving() {
         when(users.existsByEmail("user@example.com")).thenReturn(true);
-        assertError(() -> service().createUser(request(UserRole.BUYER, null)), ErrorCode.DUPLICATE_EMAIL);
+        assertError(() -> service().createUser(request(UserRole.BUYER)), ErrorCode.DUPLICATE_EMAIL);
         verify(users, never()).save(any());
     }
 
     @Test
-    void rejectsAdminAndInconsistentSellerFields() {
-        assertError(() -> service().createUser(request(UserRole.ADMIN, null)), ErrorCode.INVALID_SIGNUP_ROLE);
-        assertError(() -> service().createUser(request(UserRole.SELLER, " ")), ErrorCode.VALIDATION_FAILED);
-        assertError(() -> service().createUser(request(UserRole.BUYER, "상점")), ErrorCode.VALIDATION_FAILED);
+    void rejectsAdmin() {
+        assertError(() -> service().createUser(request(UserRole.ADMIN)), ErrorCode.INVALID_SIGNUP_ROLE);
         verifyNoInteractions(users, sellers);
     }
 
@@ -84,12 +82,12 @@ class SignupServiceTest {
     void validatesPasswordByteLimitAndRequiredFields() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
-            assertThat(validator.validate(request(UserRole.BUYER, null))).isEmpty();
+            assertThat(validator.validate(request(UserRole.BUYER))).isEmpty();
             for (String password : List.of("short", "한".repeat(25), "a".repeat(65))) {
-                var invalid = new SignupRequest("buyer_1", password, "이름", null, UserRole.BUYER, "a@example.com", null);
+                var invalid = new SignupRequest("buyer_1", password, "이름", "01012345678", UserRole.BUYER, "a@example.com");
                 assertThat(validator.validate(invalid)).anyMatch(error -> error.getPropertyPath().toString().equals("password"));
             }
-            assertThat(validator.validate(new SignupRequest(null, null, null, "abc", null, "bad", null)))
+            assertThat(validator.validate(new SignupRequest(null, null, null, "abc", null, "bad")))
                     .hasSizeGreaterThanOrEqualTo(6);
         }
     }

@@ -28,8 +28,8 @@ class SignupRollbackIntegrationTest extends PostgresIntegrationTest {
     @Test
     void rollsBackUserWhenSellerCreationFails() {
         doThrow(new IllegalStateException("테스트용 판매자 저장 실패")).when(sellerRepository).save(any(Seller.class));
-        var request = new SignupRequest("rollback_seller", "Password123!", "판매자", null,
-                UserRole.SELLER, "rollback@example.com", "상점");
+        var request = new SignupRequest("rollback_seller", "Password123!", "판매자", "01012345678",
+                UserRole.SELLER, "rollback@example.com");
 
         assertThatThrownBy(() -> authService.createUser(request)).isInstanceOf(IllegalStateException.class);
         assertThat(userRepository.findByLoginId("rollback_seller")).isEmpty();

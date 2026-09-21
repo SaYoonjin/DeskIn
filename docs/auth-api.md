@@ -27,23 +27,24 @@
 
 `POST /auth/signup`: JWT 불필요. 성공 시 201이며 자동 로그인하지 않는다.
 
-요청: `id`, `password`, `name`, `role`, `email` 필수. `phone` 선택. SELLER는 `storeName` 필수이고 BUYER에는 허용하지 않는다.
+요청: `id`, `password`, `name`, `phone`, `role`, `email` 모두 필수. `storeName`은 가입 요청에서 받지 않는다. SELLER는 가게 이름이 없는 판매자 프로필을 만들고 이후 마이페이지에서 가게를 설정한다. 가게 설정 API는 아직 구현하지 않았다.
 
 ```json
-{"id":"buyer_1","password":"Password123!","name":"홍길동","role":"BUYER","email":"buyer@example.com"}
+{"id":"buyer_1","password":"Password123!","name":"홍길동","phone":"010-1234-5678","role":"BUYER","email":"buyer@example.com"}
 ```
 
 ```json
-{"success":true,"message":"회원가입이 완료되었습니다.","data":{"userId":12,"id":"buyer_1","role":"BUYER"}}
+{"success":true,"message":"회원가입이 완료되었습니다.","data":{"userId":12,"name":"홍길동","role":"BUYER"}}
 ```
 
 - 로그인 문자열 `id`와 내부 숫자 `userId`는 다르다.
 - 아이디는 영문·숫자·밑줄 4~30자이며 공백 제거 후 소문자로 정규화한다. 이메일도 공백 제거 후 소문자로 정규화한다.
 - 아이디·이메일은 각각 중복될 수 없다. 사전 조회 이후의 DB 충돌도 409로 응답한다.
 - 비밀번호는 10~64자, UTF-8 기준 72바이트 이하이며 원문을 변환하지 않는다.
-- 이름 1~50자, 이메일 최대 254자, 상점명 1~100자. 상점명 중복은 허용한다.
-- 연락처는 공백·하이픈을 제거하고 선택적인 선행 + 및 숫자 8~15자리를 허용한다. 빈 값은 null이다.
-- 공개 가입 역할은 BUYER·SELLER뿐이다. 판매자 User와 Seller는 한 트랜잭션으로 생성한다.
+- 이름 1~50자, 이메일 최대 254자.
+- 연락처는 공백·하이픈을 제거하고 선택적인 선행 + 및 숫자 8~15자리를 허용한다. 누락·null·빈 값은 허용하지 않는다.
+- 공개 가입 역할은 BUYER·SELLER뿐이다. 판매자 User와 가게 미설정 상태의 Seller는 한 트랜잭션으로 생성한다.
+- 기존 PostgreSQL DB는 [store_name 제약 변경 SQL](migrations/20260921_seller_store_name_optional.sql)을 적용해야 한다. 새 스키마에서는 store_name이 nullable로 생성된다.
 
 ## 로그인
 

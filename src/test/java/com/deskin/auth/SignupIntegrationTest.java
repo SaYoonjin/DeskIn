@@ -35,7 +35,8 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
                  "role":"BUYER","email":" Buyer@Example.com ","phone":"010-1234-5678"}
                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.id").value("buyer_1"))
+                .andExpect(jsonPath("$.data.name").value("홍길동"))
+                .andExpect(jsonPath("$.data.id").doesNotExist())
                 .andExpect(jsonPath("$.data.role").value("BUYER"));
         var user = userRepository.findByLoginId("buyer_1").orElseThrow();
         assertThat(user.getName()).isEqualTo("홍길동");
@@ -46,23 +47,22 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void createsSellerAndAllowsMissingPhone() throws Exception {
+    void createsSellerWithoutStoreSettings() throws Exception {
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":"seller_1","password":"Password123!","name":"판매자",
-                 "role":"SELLER","email":"seller@example.com","storeName":" 데스크인 "}
+                 "role":"SELLER","email":"seller@example.com","phone":"010-1234-5678"}
                 """))
                 .andExpect(status().isCreated());
         var user = userRepository.findByLoginId("seller_1").orElseThrow();
-        assertThat(user.getPhone()).isNull();
-        assertThat(sellerRepository.findByUserUserId(user.getUserId()).orElseThrow().getStoreName()).isEqualTo("데스크인");
+        assertThat(user.getPhone()).isEqualTo("01012345678");
+        assertThat(sellerRepository.findByUserUserId(user.getUserId()).orElseThrow().getStoreName()).isNull();
     }
 
     @Test
-    void rejectsInvalidRoleAndSellerFields() throws Exception {
-        for (String fields : new String[]{"\"role\":\"ADMIN\"", "\"role\":\"SELLER\"",
-                "\"role\":\"BUYER\",\"storeName\":\"상점\""}) {
+    void rejectsInvalidRole() throws Exception {
+        for (String fields : new String[]{"\"role\":\"ADMIN\""}) {
             mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"id\":\"user_1\",\"password\":\"Password123!\",\"name\":\"이름\",\"email\":\"a@example.com\"," + fields + "}"))
+                            .content("{\"id\":\"user_1\",\"password\":\"Password123!\",\"name\":\"이름\",\"email\":\"a@example.com\",\"phone\":\"010-1234-5678\"," + fields + "}"))
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
         }
         assertThat(userRepository.findByLoginId("user_1")).isEmpty();
@@ -71,7 +71,7 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
     @Test
     void rejectsDuplicateIdAndEmail() throws Exception {
         String request = """
-                {"id":"unique_1","password":"Password123!","name":"이름","role":"BUYER","email":"unique@example.com"}
+                {"id":"unique_1","password":"Password123!","name":"이름","role":"BUYER","email":"unique@example.com","phone":"010-1234-5678"}
                 """;
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content(request))
                 .andExpect(status().isCreated());
@@ -85,7 +85,7 @@ class SignupIntegrationTest extends PostgresIntegrationTest {
     @Test
     void rejectsPasswordOverByteLimitAndInvalidJson() throws Exception {
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
-                {"id":"user_1","password":"%s","name":"이름","role":"BUYER","email":"a@example.com"}
+                {"id":"user_1","password":"%s","name":"이름","role":"BUYER","email":"a@example.com","phone":"010-1234-5678"}
                 """.formatted("한".repeat(25))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.fieldErrors[0].field").value("password"));
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{"))

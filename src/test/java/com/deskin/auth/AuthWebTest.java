@@ -97,15 +97,30 @@ class AuthWebTest {
 
     @Test
     void signupReturnsAgreedEnvelopeAndValidatesInputBeforeService() throws Exception {
-        when(authService.createUser(any())).thenReturn(new SignupResponse(12L, "buyer_1", UserRole.BUYER));
+        when(authService.createUser(any())).thenReturn(new SignupResponse(12L, "이름", UserRole.BUYER));
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
-                {"id":"buyer_1","password":"Password123!","name":"이름","role":"BUYER","email":"a@example.com"}
+                {"id":"buyer_1","password":"Password123!","name":"이름","role":"BUYER","email":"a@example.com","phone":"010-1234-5678"}
                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.userId").value(12))
-                .andExpect(jsonPath("$.data.id").value("buyer_1"));
+                .andExpect(jsonPath("$.data.name").value("이름"))
+                .andExpect(jsonPath("$.data.id").doesNotExist());
         mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         verify(authService, times(1)).createUser(any());
+    }
+
+    @Test
+    void signupRejectsMissingNullBlankAndMalformedPhoneBeforeService() throws Exception {
+        for (String phoneField : new String[]{"", ",\"phone\":null", ",\"phone\":\"\"",
+                ",\"phone\":\"   \"", ",\"phone\":\"abc\""}) {
+            mockMvc.perform(post("/auth/signup").contentType(MediaType.APPLICATION_JSON).content("""
+                    {"id":"buyer_1","password":"Password123!","name":"이름","role":"BUYER","email":"a@example.com"%s}
+                    """.formatted(phoneField)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"))
+                    .andExpect(jsonPath("$.error.fieldErrors[0].field").value("phone"));
+        }
+        verifyNoInteractions(authService);
     }
 
     @Test

@@ -20,11 +20,11 @@ public class Seller extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String storeName;
 
-    public Seller(User user, String storeName) {
+    public Seller(User user) {
         this.user = user;
-        this.storeName = storeName;
+        // 가입 시에는 가게를 설정하지 않으므로 미설정 상태를 null로 보관한다.
     }
 }
