@@ -33,11 +33,11 @@ DeskIn은 데스크테리어(desk interior) 상품을 판매하는 멀티셀러 
 
 다음 인증 기능을 구현했습니다.
 
-- 아이디·비밀번호 기반 회원가입·로그인, Refresh Token 갱신, 현재 세션 로그아웃
+- 아이디·비밀번호 기반 회원가입·로그인, Refresh Token 갱신, Refresh Token 삭제 로그아웃
 - BUYER / SELLER / ADMIN 단일 역할과 역할별 API 접근 제한
 - 판매자 가입 시 User·Seller 동시 생성
-- JWT Access Token 15분, 기기별 로그인 세션과 Refresh Token 7일
-- 갱신 토큰 교체·재사용 감지, 로그아웃 후 Refresh Token 차단(Access Token은 만료까지 유효)
+- JWT Access Token 15분, User에 연결된 Refresh Token 7일
+- 동일 Refresh Token으로 Access Token 재발급, 로그아웃 시 해당 Refresh Token 삭제
 - JWT 전용 인증 필터·기본 CORS, 공통 principal 및 인증 오류 응답
 
 Docker 없이 실행 가능한 단위·MVC 테스트와 JAR 빌드를 검증했습니다. **PostgreSQL 통합 테스트는 Docker 부재로 미실행**이며, 코드는 작성하고 컴파일했습니다. 실제 PostgreSQL 기동·동시성 검증 완료를 의미하지 않습니다.
@@ -80,7 +80,7 @@ com.deskin
    AUTH_ALLOWED_ORIGINS=http://localhost:3000
    ```
 
-   로컬 기본 DB 주소·사용자는 위와 같으며, JWT 비밀키에는 기본값이 없습니다. 여러 Origin은 쉼표로 구분합니다. `prod` 프로필은 DB_URL·DB_USERNAME·DB_PASSWORD·JWT_SECRET·AUTH_ALLOWED_ORIGINS를 필수로 주입하며 HTTPS 쿠키를 사용합니다. 기존 Toss 설정을 위해 prod에는 TOSS_SECRET_KEY·TOSS_CLIENT_KEY도 지정합니다.
+   로컬 기본 DB 주소·사용자는 위와 같으며, JWT 비밀키에는 기본값이 없습니다. 여러 Origin은 쉼표로 구분합니다. `prod` 프로필은 DB_URL·DB_USERNAME·DB_PASSWORD·JWT_SECRET·AUTH_ALLOWED_ORIGINS를 필수로 주입하며 토큰을 JSON으로 전달합니다. 기존 Toss 설정을 위해 prod에는 TOSS_SECRET_KEY·TOSS_CLIENT_KEY도 지정합니다.
 
 3. 실행합니다.
 
@@ -88,7 +88,7 @@ com.deskin
    ./gradlew bootRun
    ```
 
-운영 주소는 프론트와 API가 같은 사이트인 구성을 전제로 합니다. 다른 사이트 배포가 필요하면 쿠키 정책을 먼저 협의합니다. 현재 JPA 스키마 설정은 기존 개발 방식인 `ddl-auto: update`를 유지합니다.
+브라우저 교차 출처 요청은 AUTH_ALLOWED_ORIGINS로 설정하며 쿠키 인증은 사용하지 않습니다. 현재 JPA 스키마 설정은 기존 개발 방식인 `ddl-auto: update`를 유지합니다.
 
 ## API 명세
 
@@ -96,10 +96,10 @@ com.deskin
 | --- | --- | --- |
 | POST | `/auth/signup` | JWT 불필요 |
 | POST | `/auth/login` | JWT 불필요 |
-| POST | `/auth/refresh` | Refresh Token 쿠키 + DB 세션 확인 |
-| POST | `/auth/logout` | Bearer Access Token + DB 세션 확인 |
+| POST | `/auth/refresh` | 본문 Refresh Token + DB 해시·만료 확인 |
+| POST | `/auth/logout` | 본문 Refresh Token의 DB 해시 삭제 |
 
-첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 Bearer 헤더 기준 필요로 정정했습니다. 회원가입 응답은 userId·name·role이며 판매자의 가게 설정은 가입 이후로 분리합니다. 현재 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
+첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 본문의 Refresh Token으로 처리합니다. 회원가입 응답은 userId·name·role이며 판매자의 가게 설정은 가입 이후로 분리합니다. 현재 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
 
 공개 상품 목록·숫자 ID 상세 GET은 비회원도 접근할 수 있습니다. 주문·결제는 BUYER, `/seller/**`는 SELLER, `/admin/**`는 ADMIN만 접근합니다. 권한 상속은 없으며 Webhook은 별도 검증 정책 확정 전까지 차단합니다. 해당 도메인 API의 실제 비즈니스 구현은 후속 작업입니다.
 

@@ -11,7 +11,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.*;
 import org.springframework.security.core.context.SecurityContextHolder;
-import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -26,7 +25,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void providesPrincipalFromJwtOnly() throws Exception {
-        var principal = new AuthPrincipal(12L, UserRole.BUYER, UUID.randomUUID());
+        var principal = new AuthPrincipal(12L, UserRole.BUYER);
         when(tokens.parseAccessToken("token")).thenReturn(principal);
         var request = new MockHttpServletRequest("GET", "/orders/1");
         request.addHeader("Authorization", "Bearer token");

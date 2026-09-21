@@ -2,13 +2,10 @@ package com.deskin.auth.service.impl;
 
 import com.deskin.auth.dto.LoginRequest;
 import com.deskin.auth.dto.LoginResponse;
-import com.deskin.auth.dto.TokenResult;
-import com.deskin.auth.entity.LoginSession;
+import com.deskin.auth.dto.TokenRefreshResponse;
 import com.deskin.auth.entity.RefreshToken;
-import com.deskin.auth.repository.LoginSessionRepository;
 import com.deskin.auth.repository.RefreshTokenRepository;
 import com.deskin.auth.token.JwtTokenProvider;
-import com.deskin.auth.security.AuthPrincipal;
 import com.deskin.auth.token.OpaqueTokenProvider;
 import com.deskin.global.config.AuthProperties;
 import jakarta.annotation.PostConstruct;
@@ -22,7 +19,6 @@ import com.deskin.auth.repository.UserRepository;
 import com.deskin.auth.service.AuthService;
 import com.deskin.global.exception.CustomException;
 import com.deskin.global.exception.ErrorCode;
-import com.deskin.global.exception.RefreshTokenReuseException;
 import com.deskin.seller.entity.Seller;
 import com.deskin.seller.repository.SellerRepository;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +32,6 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LoginSessionRepository sessionRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final OpaqueTokenProvider opaqueTokenProvider;
@@ -52,7 +47,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public TokenResult authenticateUser(LoginRequest request) {
+    public LoginResponse authenticateUser(LoginRequest request) {
         // 사용자 조회 및 비밀번호 검증
         User user = userRepository.findByLoginId(request.id()).orElse(null);
         String passwordHash = user == null ? dummyPasswordHash : user.getPasswordHash();
@@ -61,50 +56,23 @@ public class AuthServiceImpl implements AuthService {
             throw new CustomException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        // 기기별 로그인 세션 생성
-        LoginSession session = sessionRepository.save(new LoginSession(user,
-                clock.instant().plus(authProperties.sessionDuration())));
-        return createTokens(session);
-    }
-
-    private TokenResult createTokens(LoginSession session) {
         String refreshToken = opaqueTokenProvider.createToken();
         refreshTokenRepository.save(new RefreshToken(opaqueTokenProvider.hashToken(refreshToken),
-                session, clock.instant()));
-        var response = new LoginResponse(jwtTokenProvider.createAccessToken(session),
-                session.getUser().getUserId(), session.getUser().getRole());
-        return new TokenResult(response, refreshToken, session.getExpiresAt());
+                user, clock.instant().plus(authProperties.refreshTokenDuration())));
+        return new LoginResponse(jwtTokenProvider.createAccessToken(user), refreshToken,
+                user.getUserId(), user.getRole());
     }
 
     @Override
-    @Transactional(noRollbackFor = RefreshTokenReuseException.class)
-    public TokenResult refreshTokens(String refreshToken) {
-        // 원문 형식을 먼저 검증하고 해시로 로그인 세션 조회
-        if (!opaqueTokenProvider.isValidFormat(refreshToken)) {
+    @Transactional(readOnly = true)
+    public TokenRefreshResponse refreshAccessToken(String refreshToken) {
+        validateRefreshTokenFormat(refreshToken);
+        RefreshToken token = refreshTokenRepository.findById(opaqueTokenProvider.hashToken(refreshToken))
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
+        if (!token.getExpiresAt().isAfter(clock.instant()) || token.getUser() == null) {
             throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
         }
-        String tokenHash = opaqueTokenProvider.hashToken(refreshToken);
-        UUID sessionId = refreshTokenRepository.findSessionIdByTokenHash(tokenHash)
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
-
-        // 토큰 엔티티를 읽기 전에 잠금을 획득해야 대기 중 변경된 사용 상태를 최신 값으로 읽는다.
-        LoginSession session = sessionRepository.findLockedById(sessionId)
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
-        RefreshToken token = refreshTokenRepository.findById(tokenHash)
-                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_REFRESH_TOKEN));
-        if (!session.isActive(clock.instant()) || !token.getExpiresAt().isAfter(clock.instant())) {
-            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
-        }
-
-        // 재사용 감지 시 예외 응답이어도 세션 폐기가 커밋되어야 한다.
-        if (token.getUsedAt() != null) {
-            session.revoke(clock.instant());
-            throw new RefreshTokenReuseException();
-        }
-
-        // 기존 토큰을 사용 처리하고 최초 세션 만료 시점을 유지한 채 새 토큰 발급
-        token.markUsed(clock.instant());
-        return createTokens(session);
+        return new TokenRefreshResponse(jwtTokenProvider.createAccessToken(token.getUser()));
     }
 
     @Override
@@ -136,16 +104,15 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void revokeSession(AuthPrincipal principal) {
-        // 갱신과 로그아웃이 동시에 진행되어도 세션 폐기가 유지되도록 같은 잠금을 사용한다.
-        LoginSession session = sessionRepository.findLockedById(principal.sessionId())
-                .orElseThrow(() -> new CustomException(ErrorCode.SESSION_REVOKED));
-        if (!session.isActive(clock.instant()) || !session.getUser().getUserId().equals(principal.userId())
-                || session.getUser().getRole() != principal.role()) {
-            throw new CustomException(ErrorCode.SESSION_REVOKED);
-        }
+    public void logout(String refreshToken) {
+        validateRefreshTokenFormat(refreshToken);
+        // 이미 삭제된 토큰으로 재요청해도 성공하여 로그아웃을 반복할 수 있다.
+        refreshTokenRepository.deleteByTokenHash(opaqueTokenProvider.hashToken(refreshToken));
+    }
 
-        // Refresh Token 갱신을 차단하며 이미 발급된 Access Token은 만료까지 유효하다.
-        session.revoke(clock.instant());
+    private void validateRefreshTokenFormat(String refreshToken) {
+        if (!opaqueTokenProvider.isValidFormat(refreshToken)) {
+            throw new CustomException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
     }
 }

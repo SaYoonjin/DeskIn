@@ -1,78 +1,48 @@
 package com.deskin.auth;
 
-import com.deskin.auth.repository.*;
-import com.deskin.auth.service.AuthService;
-import com.deskin.auth.token.JwtTokenProvider;
+import com.deskin.auth.entity.RefreshToken;
+import com.deskin.auth.repository.RefreshTokenRepository;
+import com.deskin.auth.repository.UserRepository;
 import com.deskin.auth.token.OpaqueTokenProvider;
-import com.deskin.auth.security.RefreshCookieWriter;
-import com.deskin.global.exception.CustomException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.util.List;
-import java.util.concurrent.*;
+import org.springframework.http.MediaType;
+import java.time.Instant;
 import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class RefreshPostgresIntegrationTest extends AuthPostgresTestSupport {
-    @Autowired LoginSessionRepository sessions;
     @Autowired RefreshTokenRepository refreshTokens;
-    @Autowired JwtTokenProvider jwtTokens;
+    @Autowired UserRepository users;
     @Autowired OpaqueTokenProvider opaqueTokens;
-    @Autowired AuthService authService;
 
     @Test
-    void rotatesAndCommitsRevocationAfterReuseError() throws Exception {
-        var login = login(createAccount());
-        var originalCookie = login.getCookie(RefreshCookieWriter.COOKIE_NAME);
-        var principal = jwtTokens.parseAccessToken(accessToken(login));
-        var initialExpiry = sessions.findById(principal.sessionId()).orElseThrow().getExpiresAt();
-        var renewed = mockMvc.perform(post("/auth/refresh").cookie(originalCookie)
-                        .header("Authorization", "Bearer expired-token"))
-                .andExpect(status().isOk()).andReturn().getResponse();
-        assertThat(renewed.getCookie(RefreshCookieWriter.COOKIE_NAME).getValue()).isNotEqualTo(originalCookie.getValue());
-        assertThat(refreshTokens.findById(opaqueTokens.hashToken(originalCookie.getValue())).orElseThrow().getUsedAt()).isNotNull();
-        assertThat(sessions.findById(principal.sessionId()).orElseThrow().getExpiresAt()).isEqualTo(initialExpiry);
-
-        mockMvc.perform(post("/auth/refresh").cookie(originalCookie))
-                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("REFRESH_TOKEN_REUSED"));
-        assertThat(sessions.findById(principal.sessionId()).orElseThrow().getRevokedAt()).isNotNull();
-        mockMvc.perform(post("/auth/refresh").cookie(renewed.getCookie(RefreshCookieWriter.COOKIE_NAME)))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void concurrentRefreshIssuesOnlyOneReplacementAndRevokesOnReplay() throws Exception {
-        var login = login(createAccount());
-        String original = login.getCookie(RefreshCookieWriter.COOKIE_NAME).getValue();
-        var principal = jwtTokens.parseAccessToken(accessToken(login));
-        var executor = Executors.newFixedThreadPool(2);
-        var start = new CyclicBarrier(2);
-        Callable<String> request = () -> {
-            start.await(10, TimeUnit.SECONDS);
-            try {
-                authService.refreshTokens(original);
-                return "SUCCESS";
-            } catch (CustomException exception) {
-                return exception.getErrorCode().name();
-            }
-        };
-        try {
-            var results = executor.invokeAll(List.of(request, request), 30, TimeUnit.SECONDS);
-            assertThat(List.of(results.get(0).get(), results.get(1).get()))
-                    .containsExactlyInAnyOrder("SUCCESS", "REFRESH_TOKEN_REUSED");
-            assertThat(sessions.findById(principal.sessionId()).orElseThrow().getRevokedAt()).isNotNull();
-        } finally {
-            executor.shutdownNow();
+    void reusesSameRefreshTokenWithoutRotatingOrExtendingExpiry() throws Exception {
+        var response = login(createAccount());
+        String raw = objectMapper.readTree(response.getContentAsString()).path("data").path("refreshToken").asText();
+        String hash = opaqueTokens.hashToken(raw);
+        var expiry = refreshTokens.findById(hash).orElseThrow().getExpiresAt();
+        long count = refreshTokens.count();
+        for (int attempt = 0; attempt < 2; attempt++) {
+            mockMvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"refreshToken\":\"" + raw + "\"}"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.accessToken").isString())
+                    .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                    .andExpect(header().doesNotExist("Set-Cookie"));
         }
+        assertThat(refreshTokens.count()).isEqualTo(count);
+        assertThat(refreshTokens.findById(hash).orElseThrow().getExpiresAt()).isEqualTo(expiry);
     }
 
     @Test
-    void requiresCookieWithoutOrigin() throws Exception {
-        mockMvc.perform(post("/auth/refresh"))
+    void rejectsExpiredToken() throws Exception {
+        String loginId = createAccount();
+        String raw = opaqueTokens.createToken();
+        refreshTokens.saveAndFlush(new RefreshToken(opaqueTokens.hashToken(raw),
+                users.findByLoginId(loginId).orElseThrow(), Instant.now().minusSeconds(1)));
+        mockMvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + raw + "\"}"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("INVALID_REFRESH_TOKEN"));
-        var login = login(createAccount());
-        mockMvc.perform(post("/auth/refresh").cookie(login.getCookie(RefreshCookieWriter.COOKIE_NAME)))
-                .andExpect(status().isOk());
     }
 }

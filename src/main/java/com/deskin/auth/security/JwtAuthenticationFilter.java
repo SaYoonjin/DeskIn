@@ -24,8 +24,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        // 갱신 API는 만료된 Access Token과 독립적으로 Refresh Token을 검증한다.
-        return Set.of("/auth/signup", "/auth/login", "/auth/refresh").contains(path);
+        // 갱신과 로그아웃은 Access Token 만료 여부와 관계없이 본문의 Refresh Token으로 처리한다.
+        return Set.of("/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout").contains(path);
     }
 
     @Override

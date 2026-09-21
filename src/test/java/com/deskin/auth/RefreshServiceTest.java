@@ -9,72 +9,42 @@ import static org.mockito.Mockito.*;
 
 class RefreshServiceTest extends AuthServiceTestSupport {
     @Test
-    void rotatesTokenWithoutExtendingSessionExpiry() {
+    void repeatedlyIssuesOnlyAccessTokenWithoutChangingRefreshToken() {
         String raw = opaqueTokens.createToken();
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(120));
-        var token = prepareToken(raw, session);
-        var result = service.refreshTokens(raw);
-        assertThat(token.getUsedAt()).isEqualTo(clock.instant());
-        assertThat(result.refreshToken()).isNotEqualTo(raw);
-        assertThat(result.expiresAt()).isEqualTo(session.getExpiresAt());
-        assertThat(jwtTokens.parseAccessToken(result.response().accessToken()).sessionId()).isEqualTo(session.getSessionId());
-        verify(refreshTokens).save(argThat(saved -> saved.getTokenHash().equals(opaqueTokens.hashToken(result.refreshToken()))
-                && saved.getExpiresAt().equals(session.getExpiresAt())));
-        var order = inOrder(sessions, refreshTokens);
-        order.verify(refreshTokens).findSessionIdByTokenHash(opaqueTokens.hashToken(raw));
-        order.verify(sessions).findLockedById(session.getSessionId());
-        order.verify(refreshTokens).findById(opaqueTokens.hashToken(raw));
+        var user = createUser(UserRole.BUYER);
+        var token = new RefreshToken(opaqueTokens.hashToken(raw), user, clock.instant().plusSeconds(600));
+        when(refreshTokens.findById(token.getTokenHash())).thenReturn(Optional.of(token));
+        var first = service.refreshAccessToken(raw);
+        var second = service.refreshAccessToken(raw);
+        assertThat(jwtTokens.parseAccessToken(first.accessToken()).userId()).isEqualTo(12L);
+        assertThat(jwtTokens.parseAccessToken(second.accessToken()).role()).isEqualTo(UserRole.BUYER);
+        assertThat(first.accessToken()).isNotEqualTo(second.accessToken());
+        assertThat(token.getExpiresAt()).isEqualTo(clock.instant().plusSeconds(600));
+        verify(refreshTokens, times(2)).findById(token.getTokenHash());
+        verifyNoMoreInteractions(refreshTokens);
     }
 
     @Test
-    void revokesSessionOnReuseWithoutIssuingToken() {
-        String raw = opaqueTokens.createToken();
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(120));
-        var token = prepareToken(raw, session);
-        token.markUsed(clock.instant().minusSeconds(10));
-        assertThatThrownBy(() -> service.refreshTokens(raw)).isInstanceOf(RefreshTokenReuseException.class);
-        assertThat(session.getRevokedAt()).isEqualTo(clock.instant());
-        verify(refreshTokens, never()).save(any());
+    void rejectsMalformedTokenBeforeDatabaseLookup() {
+        for (String raw : new String[]{null, "", "invalid"}) assertInvalid(raw);
+        verifyNoInteractions(refreshTokens);
     }
 
     @Test
-    void rejectsMissingMalformedAndUnknownToken() {
-        for (String raw : new String[]{null, "", "not-a-token", opaqueTokens.createToken()}) {
+    void rejectsMissingExpiredAndExactlyExpiredTokens() {
+        String raw = opaqueTokens.createToken();
+        String hash = opaqueTokens.hashToken(raw);
+        when(refreshTokens.findById(hash)).thenReturn(Optional.empty());
+        assertInvalid(raw);
+        for (long offset : new long[]{-1, 0}) {
+            when(refreshTokens.findById(hash)).thenReturn(Optional.of(new RefreshToken(hash,
+                    createUser(UserRole.BUYER), clock.instant().plusSeconds(offset))));
             assertInvalid(raw);
         }
-        verifyNoInteractions(sessions);
-        verify(refreshTokens, never()).save(any());
-    }
-
-    @Test
-    void rejectsExpiredSession() {
-        String raw = opaqueTokens.createToken();
-        prepareToken(raw, new LoginSession(createUser(UserRole.BUYER), clock.instant()));
-        assertInvalid(raw);
-        verify(refreshTokens, never()).save(any());
-    }
-
-    @Test
-    void rejectsRevokedSession() {
-        String raw = opaqueTokens.createToken();
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(120));
-        session.revoke(clock.instant());
-        prepareToken(raw, session);
-        assertInvalid(raw);
-        verify(refreshTokens, never()).save(any());
-    }
-
-    private RefreshToken prepareToken(String raw, LoginSession session) {
-        String hash = opaqueTokens.hashToken(raw);
-        var token = new RefreshToken(hash, session, clock.instant().minusSeconds(10));
-        when(refreshTokens.findSessionIdByTokenHash(hash)).thenReturn(Optional.of(session.getSessionId()));
-        when(sessions.findLockedById(session.getSessionId())).thenReturn(Optional.of(session));
-        when(refreshTokens.findById(hash)).thenReturn(Optional.of(token));
-        return token;
     }
 
     private void assertInvalid(String raw) {
-        assertThatThrownBy(() -> service.refreshTokens(raw)).isInstanceOfSatisfying(CustomException.class,
+        assertThatThrownBy(() -> service.refreshAccessToken(raw)).isInstanceOfSatisfying(CustomException.class,
                 exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_REFRESH_TOKEN));
     }
 }

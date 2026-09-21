@@ -21,25 +21,24 @@ import java.util.List;
 abstract class AuthServiceTestSupport {
     @Mock UserRepository users;
     @Mock SellerRepository sellers;
-    @Mock LoginSessionRepository sessions;
     @Mock RefreshTokenRepository refreshTokens;
     final Clock clock = Clock.fixed(Instant.parse("2026-09-21T00:00:00Z"), ZoneOffset.UTC);
-    final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(4);
+    final BCryptPasswordEncoder encoder = org.mockito.Mockito.spy(new BCryptPasswordEncoder(4));
     final OpaqueTokenProvider opaqueTokens = new OpaqueTokenProvider();
-    final AuthProperties properties = new AuthProperties(Duration.ofDays(7), true, List.of("https://app.example.com"));
+    final AuthProperties properties = new AuthProperties(Duration.ofDays(7), List.of("https://app.example.com"));
     final JwtProperties jwtProperties = new JwtProperties("unit-test-signing-secret-at-least-32-bytes", 900000, "deskin", "deskin-web");
     final JwtTokenProvider jwtTokens = new JwtTokenProvider(jwtProperties, clock);
     AuthServiceImpl service;
 
     @BeforeEach
     void initializeService() {
-        service = new AuthServiceImpl(users, sellers, encoder, sessions, refreshTokens,
+        service = new AuthServiceImpl(users, sellers, encoder, refreshTokens,
                 jwtTokens, opaqueTokens, properties, clock);
         service.initializeDummyPasswordHash();
     }
 
     User createUser(UserRole role) {
-        User user = new User("buyer_1", encoder.encode("Password123!"), "이름", null, "a@example.com", role);
+        User user = new User("buyer_1", new BCryptPasswordEncoder(4).encode("Password123!"), "이름", null, "a@example.com", role);
         ReflectionTestUtils.setField(user, "userId", 12L);
         return user;
     }

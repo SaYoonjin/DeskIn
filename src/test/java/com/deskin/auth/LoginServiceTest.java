@@ -12,36 +12,36 @@ import static org.mockito.ArgumentMatchers.any;
 
 class LoginServiceTest extends AuthServiceTestSupport {
     @Test
-    void createsSeparateSessionsAndStoresOnlyHashedRefreshTokens() {
+    void storesOnlyHashedRefreshTokensLinkedToUser() {
         when(users.findByLoginId("buyer_1")).thenReturn(Optional.of(createUser(UserRole.BUYER)));
-        when(sessions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         var first = service.authenticateUser(new LoginRequest(" BUYER_1 ", "Password123!"));
         var second = service.authenticateUser(new LoginRequest("buyer_1", "Password123!"));
-        var firstPrincipal = jwtTokens.parseAccessToken(first.response().accessToken());
-        var secondPrincipal = jwtTokens.parseAccessToken(second.response().accessToken());
+        var firstPrincipal = jwtTokens.parseAccessToken(first.accessToken());
+        var secondPrincipal = jwtTokens.parseAccessToken(second.accessToken());
         assertThat(firstPrincipal.userId()).isEqualTo(12L);
         assertThat(firstPrincipal.role()).isEqualTo(UserRole.BUYER);
-        assertThat(firstPrincipal.sessionId()).isNotEqualTo(secondPrincipal.sessionId());
-        assertThat(first.expiresAt()).isEqualTo(clock.instant().plus(properties.sessionDuration()));
         var captured = ArgumentCaptor.forClass(RefreshToken.class);
         verify(refreshTokens, times(2)).save(captured.capture());
         assertThat(captured.getAllValues().get(0).getTokenHash()).isEqualTo(opaqueTokens.hashToken(first.refreshToken()))
                 .isNotEqualTo(first.refreshToken());
         assertThat(first.refreshToken()).isNotEqualTo(second.refreshToken());
+        assertThat(captured.getValue().getUser().getUserId()).isEqualTo(12L);
+        assertThat(captured.getValue().getExpiresAt()).isEqualTo(clock.instant().plus(properties.refreshTokenDuration()));
     }
 
     @Test
-    void rejectsWrongPasswordWithoutCreatingSession() {
+    void rejectsWrongPasswordWithoutIssuingTokens() {
         when(users.findByLoginId("buyer_1")).thenReturn(Optional.of(createUser(UserRole.BUYER)));
         assertCredentialsFailure(new LoginRequest("buyer_1", "incorrect"));
-        verifyNoInteractions(sessions, refreshTokens);
+        verifyNoInteractions(refreshTokens);
     }
 
     @Test
     void rejectsUnknownUserWithSameError() {
         when(users.findByLoginId("unknown")).thenReturn(Optional.empty());
         assertCredentialsFailure(new LoginRequest("unknown", "Password123!"));
-        verifyNoInteractions(sessions, refreshTokens);
+        verify(encoder).matches(eq("Password123!"), anyString());
+        verifyNoInteractions(refreshTokens);
     }
 
     private void assertCredentialsFailure(LoginRequest request) {

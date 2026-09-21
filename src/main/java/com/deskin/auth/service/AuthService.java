@@ -1,14 +1,10 @@
 package com.deskin.auth.service;
 
-import com.deskin.auth.dto.LoginRequest;
-import com.deskin.auth.dto.TokenResult;
-import com.deskin.auth.security.AuthPrincipal;
-import com.deskin.auth.dto.SignupRequest;
-import com.deskin.auth.dto.SignupResponse;
+import com.deskin.auth.dto.*;
 
 public interface AuthService {
     SignupResponse createUser(SignupRequest request);
-    TokenResult authenticateUser(LoginRequest request);
-    TokenResult refreshTokens(String refreshToken);
-    void revokeSession(AuthPrincipal principal);
+    LoginResponse authenticateUser(LoginRequest request);
+    TokenRefreshResponse refreshAccessToken(String refreshToken);
+    void logout(String refreshToken);
 }

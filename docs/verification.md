@@ -1,31 +1,29 @@
 # 검증 상태
 
-DB 기준: PostgreSQL. 통합 테스트는 PostgreSQL Testcontainers를 사용한다.
+## 세션 없는 인증 구조
 
-- `./gradlew test`: Docker 없이 단위·MVC 테스트 실행.
-- `./gradlew postgresTest`: Docker가 필요한 PostgreSQL 통합 테스트 실행.
-- `./gradlew compileTestJava`: 통합 테스트 소스 컴파일.
+`./gradlew test bootJar` 성공: 단위·MVC 테스트 36개 통과, 실패 0, 건너뜀 0. PostgreSQL 테스트 소스 컴파일 및 실행 JAR 빌드 성공.
 
-## 인증 단순화 검증
+검증한 내용:
 
-`./gradlew test` 성공: 39개 통과, 실패 0, 건너뜀 0. PostgreSQL 통합 테스트 소스 컴파일 성공.
+- 로그인 자격 증명, dummyPasswordHash 비교, 사용자에 연결된 Refresh Token 해시·만료시간 저장.
+- JWT 서명·발급자·대상·필수 클레임·만료 검증, userId/role 추출.
+- 일반 API에서 RefreshTokenRepository 및 AuthService를 호출하지 않음.
+- 같은 Refresh Token 반복 갱신 시 DB 변경·만료 연장 없이 Access Token만 발급.
+- 형식 오류·미등록·만료 토큰 거절, 만료 시각 경계 검사.
+- 로그아웃은 지정한 해시만 삭제하며 반복 요청 성공.
+- 로그인 두 토큰 JSON 반환, 갱신 Access Token만 반환, 쿠키 미사용.
+- 갱신·로그아웃은 Access Token 없이 처리하며 만료된 Authorization 헤더에 영향을 받지 않음.
+- 기존 회원가입 응답·필수 연락처·판매자 가게 미설정 정책 유지.
+- 기본 CORS 허용 목록 유지, 쿠키 credentials 허용 제거.
 
-- Access Token은 15분 JWT이며 Authorization Bearer 헤더로 전달한다.
-- 일반 API 요청에서 LoginSessionRepository와 AuthService 호출이 없음을 MVC 테스트로 확인한다.
-- 세션 만료·폐기와 독립적으로 Access Token이 만료 시점까지 유효하고, 이후 거절되는지 검증한다.
-- 로그인·갱신·로그아웃·회원가입은 Origin 및 CSRF 토큰 없이 호출한다.
-- Refresh Token의 HttpOnly 쿠키 발급·교체·삭제를 검증한다.
-- Refresh/Logout 서비스의 DB 세션 조회·만료·폐기 검증을 유지한다.
-- PostgreSQL 통합 테스트에는 로그아웃 후 일반 API에서 기존 Access Token을 사용할 수 있고 Refresh Token은 거절되는 시나리오가 있다.
-- 기본 CORS의 허용 출처·preflight 동작을 검증한다. 커스텀 CORS 필터는 사용하지 않는다.
+PostgreSQL 통합 테스트는 로그인 해시/createdAt 저장, 반복 갱신, 만료 거절, 로그아웃 후 Refresh Token 삭제 및 Access Token 유효성을 확인하도록 변경했다.
+Docker 미설치로 통합 테스트는 미실행이며 실제 DB 동작 검증을 완료했다고 간주하지 않는다.
 
-PostgreSQL 통합 테스트는 Docker 미설치로 미실행이다. 테스트 소스 컴파일과 단위 테스트 성공을 실제 DB 검증 성공으로 간주하지 않는다.
+기존 DB 전환 SQL: `docs/migrations/20260921_refresh_token_user.sql`. 실행하지 않았으며 실제 DB에 적용하기 전 백업과 애플리케이션 중지가 필요하다. 새 스키마 생성과 기존 스키마 전환은 별도 검증 대상이다.
 
-## 회원가입 계약 변경 검증
+실행 명령:
 
-- `./gradlew test`: 40개 통과, 실패 0, 건너뜀 0. PostgreSQL 통합 테스트 소스 컴파일 성공.
-- 회원가입 응답의 name 포함 및 id 제외, phone 누락·null·공백·형식 오류 거절을 검증했다.
-- SELLER 가입 시 가게 이름 없이 판매자 프로필을 생성하고 BUYER는 판매자 프로필을 생성하지 않는다.
-- 로그인은 기존 id/password 요청을 유지한다.
-- 기존 DB의 sellers.store_name NOT NULL 해제 SQL을 docs/migrations에 준비했다. 실제 DB에는 적용하지 않았다.
-- Docker 미설치로 PostgreSQL 통합 테스트는 미실행.
+- `./gradlew test`: 단위·MVC 테스트
+- `./gradlew postgresTest`: Docker 기반 PostgreSQL 테스트
+- `./gradlew bootJar`: 실행 JAR 빌드

@@ -15,33 +15,31 @@ import static org.assertj.core.api.Assertions.*;
 class JwtTokenProviderTest extends AuthServiceTestSupport {
     @Test
     void roundTripsRequiredClaims() {
-        var session = new LoginSession(createUser(UserRole.SELLER), clock.instant().plusSeconds(604800));
-        var principal = jwtTokens.parseAccessToken(jwtTokens.createAccessToken(session));
+        var user = createUser(UserRole.SELLER);
+        var principal = jwtTokens.parseAccessToken(jwtTokens.createAccessToken(user));
         assertThat(principal.userId()).isEqualTo(12L);
         assertThat(principal.role()).isEqualTo(UserRole.SELLER);
-        assertThat(principal.sessionId()).isEqualTo(session.getSessionId());
     }
 
     @Test
     void issuesDifferentAccessTokensWithinSameSecond() {
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(300));
-        assertThat(jwtTokens.createAccessToken(session)).isNotEqualTo(jwtTokens.createAccessToken(session));
+        var user = createUser(UserRole.BUYER);
+        assertThat(jwtTokens.createAccessToken(user)).isNotEqualTo(jwtTokens.createAccessToken(user));
     }
 
     @Test
     void rejectsExpiredToken() {
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(604800));
-        String token = jwtTokens.createAccessToken(session);
+        var user = createUser(UserRole.BUYER);
+        String token = jwtTokens.createAccessToken(user);
         var later = new JwtTokenProvider(jwtProperties, Clock.offset(clock, Duration.ofMinutes(16)));
         assertError(() -> later.parseAccessToken(token), ErrorCode.ACCESS_TOKEN_EXPIRED);
     }
 
     @Test
-    void keepsFifteenMinuteAccessLifetimeIndependentOfSession() {
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(30));
-        String token = jwtTokens.createAccessToken(session);
+    void keepsFifteenMinuteAccessLifetime() {
+        var user = createUser(UserRole.BUYER);
+        String token = jwtTokens.createAccessToken(user);
         var later = new JwtTokenProvider(jwtProperties, Clock.offset(clock, Duration.ofSeconds(31)));
-        session.revoke(clock.instant());
         assertThat(later.parseAccessToken(token).userId()).isEqualTo(12L);
         var expired = new JwtTokenProvider(jwtProperties, Clock.offset(clock, Duration.ofMinutes(15).plusSeconds(1)));
         assertError(() -> expired.parseAccessToken(token), ErrorCode.ACCESS_TOKEN_EXPIRED);
@@ -49,12 +47,12 @@ class JwtTokenProviderTest extends AuthServiceTestSupport {
 
     @Test
     void rejectsDifferentSignatureIssuerAndAudience() {
-        var session = new LoginSession(createUser(UserRole.BUYER), clock.instant().plusSeconds(604800));
+        var user = createUser(UserRole.BUYER);
         for (var properties : new JwtProperties[]{
                 new JwtProperties("different-signing-secret-at-least-32-bytes", 900000, "deskin", "deskin-web"),
                 new JwtProperties(jwtProperties.secret(), 900000, "wrong", "deskin-web"),
                 new JwtProperties(jwtProperties.secret(), 900000, "deskin", "wrong")}) {
-            String token = new JwtTokenProvider(properties, clock).createAccessToken(session);
+            String token = new JwtTokenProvider(properties, clock).createAccessToken(user);
             assertError(() -> jwtTokens.parseAccessToken(token), ErrorCode.INVALID_ACCESS_TOKEN);
         }
     }

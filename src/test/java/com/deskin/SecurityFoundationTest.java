@@ -40,7 +40,7 @@ class SecurityFoundationTest extends PostgresIntegrationTest {
                         .header("Access-Control-Request-Headers", "Content-Type"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
-                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
     }
 
     @Test

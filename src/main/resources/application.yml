@@ -20,8 +20,7 @@ spring:
       initialize-schema: always
 
 auth:
-  session-duration: 7d
-  cookie-secure: true
+  refresh-token-duration: 7d
   allowed-origins: ${AUTH_ALLOWED_ORIGINS}
 
 ---
@@ -42,7 +41,6 @@ jwt:
   audience: deskin-web
 
 auth:
-  cookie-secure: false
   allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:3000}
 
 toss:

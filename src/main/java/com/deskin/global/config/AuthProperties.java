@@ -9,11 +9,11 @@ import java.util.List;
 
 @Validated
 @ConfigurationProperties(prefix = "auth")
-public record AuthProperties(@NotNull Duration sessionDuration, boolean cookieSecure,
+public record AuthProperties(@NotNull Duration refreshTokenDuration,
                              @NotEmpty List<String> allowedOrigins) {
     public AuthProperties {
-        if (sessionDuration != null && (sessionDuration.isZero() || sessionDuration.isNegative())) {
-            throw new IllegalArgumentException("로그인 유지 기간은 양수여야 합니다.");
+        if (refreshTokenDuration != null && (refreshTokenDuration.isZero() || refreshTokenDuration.isNegative())) {
+            throw new IllegalArgumentException("Refresh Token 유지 기간은 양수여야 합니다.");
         }
         if (allowedOrigins != null && allowedOrigins.stream().anyMatch(origin -> origin.contains("*"))) {
             throw new IllegalArgumentException("허용 Origin에는 와일드카드를 사용할 수 없습니다.");

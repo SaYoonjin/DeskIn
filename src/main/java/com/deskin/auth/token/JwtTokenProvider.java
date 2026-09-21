@@ -1,7 +1,7 @@
 package com.deskin.auth.token;
 
 import com.deskin.auth.security.AuthPrincipal;
-import com.deskin.auth.entity.LoginSession;
+import com.deskin.auth.entity.User;
 import com.deskin.auth.entity.UserRole;
 import com.deskin.global.config.JwtProperties;
 import com.deskin.global.exception.CustomException;
@@ -29,11 +29,11 @@ public class JwtTokenProvider {
         this.signingKey = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
     }
 
-    public String createAccessToken(LoginSession session) {
+    public String createAccessToken(User user) {
         Instant now = clock.instant();
         Instant expiresAt = now.plusMillis(properties.accessTokenExpireMs());
-        return Jwts.builder().id(UUID.randomUUID().toString()).subject(session.getUser().getUserId().toString())
-                .claim("role", session.getUser().getRole().name()).claim("sessionId", session.getSessionId().toString())
+        return Jwts.builder().id(UUID.randomUUID().toString()).subject(user.getUserId().toString())
+                .claim("role", user.getRole().name())
                 .issuer(properties.issuer()).audience().add(properties.audience()).and()
                 .issuedAt(Date.from(now)).expiration(Date.from(expiresAt))
                 .signWith(signingKey, Jwts.SIG.HS256).compact();
@@ -53,8 +53,7 @@ public class JwtTokenProvider {
                     || claims.getIssuedAt().after(Date.from(clock.instant()))) {
                 throw new IllegalArgumentException("필수 클레임이 올바르지 않습니다.");
             }
-            return new AuthPrincipal(userId, UserRole.valueOf(claims.get("role", String.class)),
-                    UUID.fromString(claims.get("sessionId", String.class)));
+            return new AuthPrincipal(userId, UserRole.valueOf(claims.get("role", String.class)));
         } catch (ExpiredJwtException exception) {
             throw new CustomException(ErrorCode.ACCESS_TOKEN_EXPIRED);
         } catch (JwtException | IllegalArgumentException | NullPointerException exception) {

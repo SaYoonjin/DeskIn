@@ -6,8 +6,7 @@ import com.deskin.auth.entity.UserRole;
 import com.deskin.auth.service.AuthService;
 import com.deskin.auth.token.JwtTokenProvider;
 import com.deskin.auth.security.AuthPrincipal;
-import com.deskin.auth.repository.LoginSessionRepository;
-import com.deskin.auth.security.RefreshCookieWriter;
+import com.deskin.auth.repository.RefreshTokenRepository;
 import com.deskin.auth.security.SecurityErrorHandler;
 import com.deskin.global.config.SecurityConfig;
 import com.deskin.global.exception.GlobalExceptionHandler;
@@ -34,9 +33,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = {AuthController.class, AuthWebTest.Endpoints.class})
-@Import({SecurityConfig.class, SecurityErrorHandler.class, RefreshCookieWriter.class,
+@Import({SecurityConfig.class, SecurityErrorHandler.class,
         GlobalExceptionHandler.class, AuthWebTest.Endpoints.class})
-@TestPropertySource(properties = {"auth.session-duration=7d", "auth.cookie-secure=true",
+@TestPropertySource(properties = {"auth.refresh-token-duration=7d",
         "auth.allowed-origins=https://app.example.com", "jwt.secret=test-secret-at-least-thirty-two-bytes",
         "jwt.access-token-expire-ms=900000", "jwt.issuer=deskin", "jwt.audience=deskin-web"})
 class AuthWebTest {
@@ -44,7 +43,7 @@ class AuthWebTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean AuthService authService;
     @MockBean JwtTokenProvider jwtTokens;
-    @MockBean LoginSessionRepository sessions;
+    @MockBean RefreshTokenRepository refreshTokens;
 
     @RestController
     static class Endpoints {
@@ -92,7 +91,7 @@ class AuthWebTest {
                 .andExpect(status().isOk()).andExpect(content().string("12"));
         mockMvc.perform(post("/orders/probe").header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk());
-        verifyNoInteractions(sessions, authService);
+        verifyNoInteractions(refreshTokens, authService);
     }
 
     @Test
@@ -124,27 +123,40 @@ class AuthWebTest {
     }
 
     @Test
-    void loginKeepsRefreshTokenOutOfJsonAndSetsSecureCookie() throws Exception {
+    void loginReturnsBothTokensWithoutCookies() throws Exception {
         when(authService.authenticateUser(any())).thenReturn(result());
-        var response = mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"id\":\"buyer_1\",\"password\":\"Password123!\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.data.refreshToken").doesNotExist()).andReturn().getResponse();
-        assertThat(response.getHeader("Set-Cookie")).contains("refreshToken=refresh-token", "Secure", "HttpOnly", "SameSite=Lax");
-        assertThat(response.getContentAsString()).doesNotContain("refresh-token");
+                .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
+                .andExpect(header().doesNotExist("Set-Cookie"));
     }
 
     @Test
-    void refreshUsesCookieAndLogoutUsesVerifiedPrincipal() throws Exception {
-        when(authService.refreshTokens("refresh-token")).thenReturn(result());
-        mockMvc.perform(post("/auth/refresh")
-                        .cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.message").value("토큰이 갱신되었습니다."));
-        var principal = configureToken();
-        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer valid"))
+    void refreshAndLogoutUseBodyWithoutAccessTokenOrCookie() throws Exception {
+        when(authService.refreshAccessToken("refresh-token")).thenReturn(new TokenRefreshResponse("new-access"));
+        mockMvc.perform(post("/auth/refresh").header("Authorization", "Bearer expired")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"refresh-token\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.accessToken").value("new-access"))
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        mockMvc.perform(post("/auth/logout").header("Authorization", "Bearer expired")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"refresh-token\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data").doesNotExist())
-                .andExpect(cookie().maxAge("refreshToken", 0));
-        verify(authService).revokeSession(principal);
+                .andExpect(header().doesNotExist("Set-Cookie"));
+        verify(authService).logout("refresh-token");
+    }
+
+    @Test
+    void refreshAndLogoutValidateRequiredBodyToken() throws Exception {
+        for (String path : new String[]{"/auth/refresh", "/auth/logout"}) {
+            for (String body : new String[]{"{}", "{\"refreshToken\":null}", "{\"refreshToken\":\" \"}"}) {
+                mockMvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isBadRequest())
+                        .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+            }
+        }
+        verifyNoInteractions(authService);
     }
 
     @Test
@@ -158,7 +170,7 @@ class AuthWebTest {
     void corsAllowsOnlyConfiguredOriginAndNeverCreatesHttpSession() throws Exception {
         mockMvc.perform(options("/auth/login").header("Origin", "https://app.example.com")
                         .header("Access-Control-Request-Method", "POST"))
-                .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+                .andExpect(status().isOk()).andExpect(header().doesNotExist("Access-Control-Allow-Credentials"))
                 .andExpect(cookie().doesNotExist("JSESSIONID"));
         mockMvc.perform(options("/auth/login").header("Origin", "https://other.example")
                         .header("Access-Control-Request-Method", "POST"))
@@ -166,13 +178,12 @@ class AuthWebTest {
     }
 
     private AuthPrincipal configureToken() {
-        var principal = new AuthPrincipal(12L, UserRole.BUYER, UUID.randomUUID());
+        var principal = new AuthPrincipal(12L, UserRole.BUYER);
         when(jwtTokens.parseAccessToken("valid")).thenReturn(principal);
         return principal;
     }
 
-    private TokenResult result() {
-        return new TokenResult(new LoginResponse("access-token", 12L, UserRole.BUYER),
-                "refresh-token", Instant.now().plusSeconds(600));
+    private LoginResponse result() {
+        return new LoginResponse("access-token", "refresh-token", 12L, UserRole.BUYER);
     }
 }

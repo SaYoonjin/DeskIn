@@ -1,9 +1,7 @@
 package com.deskin.auth;
 
-import com.deskin.auth.repository.*;
-import com.deskin.auth.token.JwtTokenProvider;
+import com.deskin.auth.repository.RefreshTokenRepository;
 import com.deskin.auth.token.OpaqueTokenProvider;
-import com.deskin.auth.security.RefreshCookieWriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -12,28 +10,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 class LoginPostgresIntegrationTest extends AuthPostgresTestSupport {
-    @Autowired LoginSessionRepository sessions;
     @Autowired RefreshTokenRepository refreshTokens;
-    @Autowired JwtTokenProvider jwtTokens;
     @Autowired OpaqueTokenProvider opaqueTokens;
 
     @Test
-    void persistsSeparateSessionsAndReturnsOnlyAccessTokenInBody() throws Exception {
-        String loginId = createAccount();
-        var first = login(loginId);
-        var second = login(loginId);
-        var firstPrincipal = jwtTokens.parseAccessToken(accessToken(first));
-        var secondPrincipal = jwtTokens.parseAccessToken(accessToken(second));
-        assertThat(firstPrincipal.sessionId()).isNotEqualTo(secondPrincipal.sessionId());
-        assertThat(sessions.findById(firstPrincipal.sessionId())).isPresent();
-        assertThat(sessions.findById(secondPrincipal.sessionId())).isPresent();
-        var cookie = first.getCookie(RefreshCookieWriter.COOKIE_NAME);
-        assertThat(cookie).isNotNull();
-        assertThat(cookie.isHttpOnly()).isTrue();
-        assertThat(cookie.getPath()).isEqualTo("/auth");
-        assertThat(refreshTokens.findById(opaqueTokens.hashToken(cookie.getValue()))).isPresent();
-        assertThat(first.getContentAsString()).doesNotContain(cookie.getValue(), "refreshToken", "password");
-        assertThat(objectMapper.readTree(first.getContentAsString()).path("data").path("role").asText()).isEqualTo("BUYER");
+    void returnsTokensAndPersistsOnlyHashWithExpiryAndCreatedAt() throws Exception {
+        var response = login(createAccount());
+        String raw = objectMapper.readTree(response.getContentAsString()).path("data").path("refreshToken").asText();
+        assertThat(opaqueTokens.isValidFormat(raw)).isTrue();
+        var stored = refreshTokens.findById(opaqueTokens.hashToken(raw)).orElseThrow();
+        assertThat(stored.getTokenHash()).isNotEqualTo(raw);
+        assertThat(stored.getCreatedAt()).isNotNull();
+        assertThat(stored.getExpiresAt()).isAfter(stored.getCreatedAt());
+        assertThat(response.getHeader("Set-Cookie")).isNull();
+        assertThat(accessToken(response)).isNotBlank();
     }
 
     @Test
@@ -43,7 +33,7 @@ class LoginPostgresIntegrationTest extends AuthPostgresTestSupport {
             mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"id\":\"" + id + "\",\"password\":\"WrongPassword\"}"))
                     .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
-                    .andExpect(cookie().doesNotExist(RefreshCookieWriter.COOKIE_NAME));
+                    .andExpect(header().doesNotExist("Set-Cookie"));
         }
     }
 }

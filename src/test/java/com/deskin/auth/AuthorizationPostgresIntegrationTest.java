@@ -31,7 +31,7 @@ class AuthorizationPostgresIntegrationTest extends AuthPostgresTestSupport {
 
     @ParameterizedTest
     @EnumSource(UserRole.class)
-    void authorizesPersistedSessionsWithoutRoleInheritance(UserRole role) throws Exception {
+    void authorizesJwtRolesWithoutRoleInheritance(UserRole role) throws Exception {
         String loginId = "role_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
         // 관리자 계정은 공개 가입이 아닌 테스트용 저장소 픽스처로만 생성한다.
         User user = users.save(new User(loginId, passwords.encode("Password123!"), "이름", null,

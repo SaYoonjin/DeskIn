@@ -14,6 +14,5 @@ jwt:
   audience: deskin-web
 
 auth:
-  session-duration: 7d
-  cookie-secure: false
+  refresh-token-duration: 7d
   allowed-origins: http://localhost:3000
