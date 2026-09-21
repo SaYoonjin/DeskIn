@@ -11,7 +11,6 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,8 +29,7 @@ public class SecurityErrorHandler implements AuthenticationEntryPoint, AccessDen
     @Override
     public void handle(HttpServletRequest request, HttpServletResponse response,
                        AccessDeniedException exception) throws IOException {
-        writeError(response, exception instanceof CsrfException
-                ? ErrorCode.CSRF_VALIDATION_FAILED : ErrorCode.ACCESS_DENIED);
+        writeError(response, ErrorCode.ACCESS_DENIED);
     }
 
     public void writeError(HttpServletResponse response, ErrorCode errorCode) throws IOException {

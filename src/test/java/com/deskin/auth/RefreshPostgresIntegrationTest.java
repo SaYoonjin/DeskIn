@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.concurrent.*;
 import static org.assertj.core.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -28,17 +27,17 @@ class RefreshPostgresIntegrationTest extends AuthPostgresTestSupport {
         var originalCookie = login.getCookie(RefreshCookieWriter.COOKIE_NAME);
         var principal = jwtTokens.parseAccessToken(accessToken(login));
         var initialExpiry = sessions.findById(principal.sessionId()).orElseThrow().getExpiresAt();
-        var renewed = mockMvc.perform(post("/auth/refresh").with(csrf()).cookie(originalCookie)
+        var renewed = mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000").cookie(originalCookie)
                         .header("Authorization", "Bearer expired-token"))
                 .andExpect(status().isOk()).andReturn().getResponse();
         assertThat(renewed.getCookie(RefreshCookieWriter.COOKIE_NAME).getValue()).isNotEqualTo(originalCookie.getValue());
         assertThat(refreshTokens.findById(opaqueTokens.hashToken(originalCookie.getValue())).orElseThrow().getUsedAt()).isNotNull();
         assertThat(sessions.findById(principal.sessionId()).orElseThrow().getExpiresAt()).isEqualTo(initialExpiry);
 
-        mockMvc.perform(post("/auth/refresh").with(csrf()).cookie(originalCookie))
+        mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000").cookie(originalCookie))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("REFRESH_TOKEN_REUSED"));
         assertThat(sessions.findById(principal.sessionId()).orElseThrow().getRevokedAt()).isNotNull();
-        mockMvc.perform(post("/auth/refresh").with(csrf()).cookie(renewed.getCookie(RefreshCookieWriter.COOKIE_NAME)))
+        mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000").cookie(renewed.getCookie(RefreshCookieWriter.COOKIE_NAME)))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -69,11 +68,11 @@ class RefreshPostgresIntegrationTest extends AuthPostgresTestSupport {
     }
 
     @Test
-    void rejectsMissingCookieAndCsrf() throws Exception {
-        mockMvc.perform(post("/auth/refresh").with(csrf()))
+    void rejectsMissingCookieAndOrigin() throws Exception {
+        mockMvc.perform(post("/auth/refresh").header("Origin", "http://localhost:3000"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("INVALID_REFRESH_TOKEN"));
         var login = login(createAccount());
         mockMvc.perform(post("/auth/refresh").cookie(login.getCookie(RefreshCookieWriter.COOKIE_NAME)))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("CSRF_VALIDATION_FAILED"));
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
     }
 }

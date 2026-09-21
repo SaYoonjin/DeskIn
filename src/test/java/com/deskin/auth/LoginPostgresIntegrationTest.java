@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import static org.assertj.core.api.Assertions.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -41,7 +40,7 @@ class LoginPostgresIntegrationTest extends AuthPostgresTestSupport {
     void returnsSameErrorForUnknownIdAndWrongPassword() throws Exception {
         String loginId = createAccount();
         for (String id : new String[]{loginId, "unknown_user"}) {
-            mockMvc.perform(post("/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            mockMvc.perform(post("/auth/login").header("Origin", "http://localhost:3000").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"id\":\"" + id + "\",\"password\":\"WrongPassword\"}"))
                     .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.error.code").value("INVALID_CREDENTIALS"))
                     .andExpect(cookie().doesNotExist(RefreshCookieWriter.COOKIE_NAME));

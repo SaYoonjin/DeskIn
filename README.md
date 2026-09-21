@@ -38,7 +38,7 @@ DeskIn은 데스크테리어(desk interior) 상품을 판매하는 멀티셀러 
 - 판매자 가입 시 User·Seller 동시 생성
 - JWT Access Token 15분, 기기별 로그인 세션과 Refresh Token 7일
 - 갱신 토큰 교체·재사용 감지, 로그아웃 후 토큰 즉시 차단
-- CSRF·CORS, 공통 principal 및 오류 응답
+- Origin 검증·CORS, 공통 principal 및 오류 응답
 
 Docker 없이 실행 가능한 단위·MVC 테스트와 JAR 빌드를 검증했습니다. **PostgreSQL 통합 테스트는 Docker 부재로 미실행**이며, 코드는 작성하고 컴파일했습니다. 실제 PostgreSQL 기동·동시성 검증 완료를 의미하지 않습니다.
 
@@ -94,13 +94,12 @@ com.deskin
 
 | Method | Endpoint | 인증 방식 |
 | --- | --- | --- |
-| POST | `/auth/signup` | JWT 불필요, CSRF 필요 |
-| POST | `/auth/login` | JWT 불필요, CSRF 필요 |
-| POST | `/auth/refresh` | Refresh Token 쿠키 + CSRF |
-| POST | `/auth/logout` | Bearer Access Token + CSRF |
-| GET | `/auth/csrf` | JWT 불필요 |
+| POST | `/auth/signup` | JWT 불필요, 허용된 Origin 필요 |
+| POST | `/auth/login` | JWT 불필요, 허용된 Origin 필요 |
+| POST | `/auth/refresh` | Refresh Token 쿠키 + 허용된 Origin |
+| POST | `/auth/logout` | Bearer Access Token + 허용된 Origin |
 
-첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 Bearer 헤더 기준 필요로 정정했습니다. 판매자 storeName과 갱신·CSRF API는 합의된 확장 사항입니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
+첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 Bearer 헤더 기준 필요로 정정했습니다. 현재 판매자 storeName과 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
 
 공개 상품 목록·숫자 ID 상세 GET은 비회원도 접근할 수 있습니다. 주문·결제는 BUYER, `/seller/**`는 SELLER, `/admin/**`는 ADMIN만 접근합니다. 권한 상속은 없으며 Webhook은 별도 검증 정책 확정 전까지 차단합니다. 해당 도메인 API의 실제 비즈니스 구현은 후속 작업입니다.
 

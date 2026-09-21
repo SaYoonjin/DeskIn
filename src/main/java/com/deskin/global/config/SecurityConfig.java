@@ -20,10 +20,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import com.deskin.auth.security.AuthOriginFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.DefaultCorsProcessor;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -41,19 +38,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorHandler errorHandler,
                                                    AuthProperties properties, JwtTokenProvider tokens,
                                                    SessionAuthenticator sessions) throws Exception {
-        CookieCsrfTokenRepository csrfRepository = new CookieCsrfTokenRepository();
-        csrfRepository.setCookieCustomizer(cookie -> cookie.path("/auth").httpOnly(true)
-                .secure(properties.cookieSecure()).sameSite("Lax"));
-
-        // 쿠키를 사용하는 인증 요청만 CSRF로 보호하고 도메인 API는 Bearer 인증을 사용한다.
-        var csrfRequests = new OrRequestMatcher(
-                new AntPathRequestMatcher("/auth/signup", "POST"),
-                new AntPathRequestMatcher("/auth/login", "POST"),
-                new AntPathRequestMatcher("/auth/refresh", "POST"),
-                new AntPathRequestMatcher("/auth/logout", "POST"));
-        http.csrf(csrf -> csrf.csrfTokenRepository(csrfRepository)
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .requireCsrfProtectionMatcher(csrfRequests))
+        http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
@@ -64,13 +49,13 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET, "/products", "/products/{productId:[0-9]+}").permitAll()
                         .requestMatchers("/orders/**", "/payments/**").hasRole("BUYER")
                         .requestMatchers("/seller/**").hasRole("SELLER")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll());
+        http.addFilterAfter(new AuthOriginFilter(properties, errorHandler), CorsFilter.class);
         http.addFilterBefore(new JwtAuthenticationFilter(tokens, sessions, errorHandler),
                 UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -81,7 +66,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization", "X-XSRF-TOKEN"));
+        configuration.setAllowedHeaders(List.of("Content-Type", "Authorization"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

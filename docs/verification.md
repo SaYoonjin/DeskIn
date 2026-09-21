@@ -26,6 +26,14 @@ DB 기준: PostgreSQL. 통합 테스트는 실제 PostgreSQL Testcontainers를 �
 | 로그인 | 비밀번호 실패·독립 세션·JWT·쿠키, HTTP 계약 | 실제 세션·해시 저장·다중 로그인 |
 | 토큰 갱신 | 교체·고정 만료·재사용 폐기·만료/폐기 거절 | 행 잠금·동시 갱신·재사용 폐기 커밋 |
 | 로그아웃 | 현재 세션 폐기·사용자/역할 검사·쿠키 삭제 | 토큰 즉시 차단·다른 기기 유지·갱신 경합·만료 후 갱신 |
-| 공통 보안 | CSRF·CORS·권한 행렬·principal·JWT 필터 | 실제 JWT/DB 세션 기반 역할 제한·CSRF |
+| 공통 보안 | Origin 검증·CORS·권한 행렬·principal·JWT 필터 | 실제 JWT/DB 세션 기반 역할 제한·Origin 검증 |
 
 위 표의 PostgreSQL 항목은 모두 **작성 및 컴파일만 완료**한 상태다. Docker 환경에서는 `./gradlew test postgresTest`를 실행해 DB 관련 검증을 완료해야 한다.
+
+## 별도 CSRF API 제거 후 검증
+
+- `./gradlew test`: 45개 성공, 실패 0, 건너뜀 0. PostgreSQL 테스트 소스도 컴파일 성공.
+- 로그인·갱신·로그아웃·회원가입 MVC 요청은 CSRF 토큰 없이 허용된 Origin으로 검증한다.
+- Origin 누락·null·중복·악성 접미사·다른 프로토콜 거절, 컨텍스트 경로, OPTIONS 및 Bearer 도메인 요청 제외를 검증한다.
+- 삭제된 `/auth/csrf`는 공개 경로에서 제외되고 XSRF-TOKEN 쿠키를 발급하지 않는다.
+- Docker 미설치로 PostgreSQL 통합 테스트는 미실행.

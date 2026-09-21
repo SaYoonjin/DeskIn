@@ -27,17 +27,17 @@ class SecurityFoundationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void rejectsAuthMutationWithoutCsrfUsingCommonError() throws Exception {
+    void rejectsAuthMutationWithoutOriginUsingCommonError() throws Exception {
         mockMvc.perform(post("/auth/signup"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("CSRF_VALIDATION_FAILED"));
+                .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
     }
 
     @Test
     void allowsConfiguredCorsPreflight() throws Exception {
         mockMvc.perform(options("/auth/signup").header("Origin", "http://localhost:3000")
                         .header("Access-Control-Request-Method", "POST")
-                        .header("Access-Control-Request-Headers", "Content-Type,X-XSRF-TOKEN"))
+                        .header("Access-Control-Request-Headers", "Content-Type"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
                 .andExpect(header().string("Access-Control-Allow-Credentials", "true"));

@@ -33,7 +33,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {AuthController.class, CsrfController.class, AuthWebTest.Endpoints.class})
+@WebMvcTest(controllers = {AuthController.class, AuthWebTest.Endpoints.class})
 @Import({SecurityConfig.class, SecurityErrorHandler.class, RefreshCookieWriter.class,
         GlobalExceptionHandler.class, AuthWebTest.Endpoints.class})
 @TestPropertySource(properties = {"auth.session-duration=7d", "auth.cookie-secure=true",
@@ -98,12 +98,12 @@ class AuthWebTest {
     @Test
     void signupReturnsAgreedEnvelopeAndValidatesInputBeforeService() throws Exception {
         when(authService.createUser(any())).thenReturn(new SignupResponse(12L, "buyer_1", UserRole.BUYER));
-        mockMvc.perform(post("/auth/signup").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("""
+        mockMvc.perform(post("/auth/signup").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON).content("""
                 {"id":"buyer_1","password":"Password123!","name":"이름","role":"BUYER","email":"a@example.com"}
                 """))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.userId").value(12))
                 .andExpect(jsonPath("$.data.id").value("buyer_1"));
-        mockMvc.perform(post("/auth/signup").with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/auth/signup").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
         verify(authService, times(1)).createUser(any());
     }
@@ -111,7 +111,7 @@ class AuthWebTest {
     @Test
     void loginKeepsRefreshTokenOutOfJsonAndSetsSecureCookie() throws Exception {
         when(authService.authenticateUser(any())).thenReturn(result());
-        var response = mockMvc.perform(post("/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        var response = mockMvc.perform(post("/auth/login").header("Origin", "https://app.example.com").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"id\":\"buyer_1\",\"password\":\"Password123!\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.data.refreshToken").doesNotExist()).andReturn().getResponse();
@@ -122,27 +122,26 @@ class AuthWebTest {
     @Test
     void refreshUsesCookieAndLogoutUsesVerifiedPrincipal() throws Exception {
         when(authService.refreshTokens("refresh-token")).thenReturn(result());
-        mockMvc.perform(post("/auth/refresh").with(csrf())
+        mockMvc.perform(post("/auth/refresh").header("Origin", "https://app.example.com")
                         .cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.message").value("토큰이 갱신되었습니다."));
         var principal = configureToken();
-        mockMvc.perform(post("/auth/logout").with(csrf()).header("Authorization", "Bearer valid"))
+        mockMvc.perform(post("/auth/logout").header("Origin", "https://app.example.com").header("Authorization", "Bearer valid"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data").doesNotExist())
                 .andExpect(cookie().maxAge("refreshToken", 0));
         verify(authService).revokeSession(principal);
     }
 
     @Test
-    void authenticatesCsrfCookieAndRejectsMismatch() throws Exception {
-        var response = mockMvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
-        var cookie = response.getCookie("XSRF-TOKEN");
-        assertThat(cookie.isHttpOnly()).isTrue();
-        String token = objectMapper.readTree(response.getContentAsString()).path("data").path("csrfToken").asText();
-        mockMvc.perform(post("/auth/signup").cookie(cookie).header("X-XSRF-TOKEN", token)
-                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isBadRequest());
-        mockMvc.perform(post("/auth/signup").cookie(cookie).header("X-XSRF-TOKEN", "wrong"))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("CSRF_VALIDATION_FAILED"));
+    void removesCsrfEndpointAndRejectsMissingOrigin() throws Exception {
+        mockMvc.perform(get("/auth/csrf"))
+                .andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist("XSRF-TOKEN"));
+        for (String path : new String[]{"/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout"}) {
+            mockMvc.perform(post(path))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error.code").value("INVALID_REQUEST_ORIGIN"));
+        }
+        verifyNoInteractions(authService);
     }
 
     @Test
