@@ -76,4 +76,16 @@ class JwtAuthenticationFilterTest {
         assertThat(response.getContentAsString()).isEmpty();
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
+
+    @Test
+    void sameAuthPathWithGetMethodStillRequiresAccessToken() throws Exception {
+        var request = new MockHttpServletRequest("GET", "/auth/login");
+        request.addHeader("Authorization", "Basic credentials");
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("INVALID_ACCESS_TOKEN");
+    }
 }
