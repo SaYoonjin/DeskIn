@@ -25,7 +25,8 @@ abstract class AuthServiceTestSupport {
     final Clock clock = Clock.fixed(Instant.parse("2026-09-21T00:00:00Z"), ZoneOffset.UTC);
     final BCryptPasswordEncoder encoder = org.mockito.Mockito.spy(new BCryptPasswordEncoder(4));
     final OpaqueTokenProvider opaqueTokens = new OpaqueTokenProvider();
-    final AuthProperties properties = new AuthProperties(Duration.ofDays(7), List.of("https://app.example.com"));
+    final AuthProperties properties = new AuthProperties(Duration.ofDays(7), List.of("https://app.example.com"),
+            5, Duration.ofMinutes(1));
     final JwtProperties jwtProperties = new JwtProperties("unit-test-signing-secret-at-least-32-bytes", 900000, "deskin", "deskin-web");
     final JwtTokenProvider jwtTokens = new JwtTokenProvider(jwtProperties, clock);
     AuthServiceImpl service;

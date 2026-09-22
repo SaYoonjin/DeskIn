@@ -2,11 +2,13 @@ package com.deskin.global.config;
 
 import com.deskin.auth.security.SecurityErrorHandler;
 import com.deskin.auth.security.JwtAuthenticationFilter;
+import com.deskin.auth.security.AuthRateLimitFilter;
 import com.deskin.auth.token.JwtTokenProvider;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -24,7 +26,7 @@ import java.util.List;
 public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorHandler errorHandler,
-                                                   JwtTokenProvider tokens) throws Exception {
+                                                   JwtTokenProvider tokens, AuthRateLimitFilter rateLimit) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -41,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers("/seller/**").hasRole("SELLER")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll());
+        http.addFilterBefore(rateLimit, UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(new JwtAuthenticationFilter(tokens, errorHandler),
                 UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -61,5 +64,12 @@ public class SecurityConfig {
     @Bean
     public Clock clock() {
         return Clock.systemUTC();
+    }
+
+    @Bean
+    public FilterRegistrationBean<AuthRateLimitFilter> disableServletRateLimitFilter(AuthRateLimitFilter filter) {
+        FilterRegistrationBean<AuthRateLimitFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 }

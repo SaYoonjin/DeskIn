@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import org.springframework.http.HttpMethod;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -28,7 +29,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         // 갱신과 로그아웃은 Access Token 만료 여부와 관계없이 본문의 Refresh Token으로 처리한다.
-        return AUTHENTICATION_EXCLUDED_PATHS.contains(path);
+        return HttpMethod.POST.matches(request.getMethod())
+                && AUTHENTICATION_EXCLUDED_PATHS.contains(path);
     }
 
     @Override

@@ -35,7 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(controllers = {AuthController.class, AuthWebTest.Endpoints.class})
 @Import({SecurityConfig.class, SecurityErrorHandler.class,
         GlobalExceptionHandler.class, AuthWebTest.Endpoints.class})
-@TestPropertySource(properties = {"auth.refresh-token-duration=7d",
+    @TestPropertySource(properties = {"auth.refresh-token-duration=7d",
+        "auth.rate-limit-max-attempts=100", "auth.rate-limit-window=1m",
         "auth.allowed-origins=https://app.example.com", "jwt.secret=test-secret-at-least-thirty-two-bytes",
         "jwt.access-token-expire-ms=900000", "jwt.issuer=deskin", "jwt.audience=deskin-web"})
 class AuthWebTest {

@@ -6,7 +6,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -22,6 +22,8 @@ spring:
 auth:
   refresh-token-duration: 7d
   allowed-origins: ${AUTH_ALLOWED_ORIGINS}
+  rate-limit-max-attempts: 5
+  rate-limit-window: 1m
 
 ---
 spring:
@@ -33,6 +35,9 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
 
 jwt:
   secret: ${JWT_SECRET}
