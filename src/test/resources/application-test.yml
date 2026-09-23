@@ -16,3 +16,8 @@ jwt:
 auth:
   refresh-token-duration: 7d
   allowed-origins: http://localhost:3000
+
+toss:
+  secret-key: test-secret-key
+  client-key: test-client-key
+  base-url: https://api.tosspayments.com

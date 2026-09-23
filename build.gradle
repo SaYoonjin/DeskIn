@@ -7,6 +7,10 @@ plugins {
 group = 'com.deskin'
 version = '0.0.1-SNAPSHOT'
 
+// Spring Boot 3.3.4가 관리하는 기본 버전(1.19.8)은 최신 Docker Engine(29.x)이 요구하는
+// 최소 API 버전(1.40)보다 낮은 클라이언트로 통신해 400 에러가 난다. 버전을 올려 회피한다.
+ext['testcontainers.version'] = '1.20.4'
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(17)

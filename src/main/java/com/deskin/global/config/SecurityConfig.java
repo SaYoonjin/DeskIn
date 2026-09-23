@@ -22,7 +22,7 @@ import java.time.Clock;
 import java.util.List;
 
 @Configuration
-@EnableConfigurationProperties({AuthProperties.class, JwtProperties.class})
+@EnableConfigurationProperties({AuthProperties.class, JwtProperties.class, TossProperties.class})
 public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorHandler errorHandler,
@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(errorHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/webhooks/toss").permitAll()
                         .requestMatchers(HttpMethod.GET, "/products", "/products/{productId:[0-9]+}").permitAll()
                         .requestMatchers("/orders/**", "/payments/**").hasRole("BUYER")
                         .requestMatchers("/seller/**").hasRole("SELLER")
