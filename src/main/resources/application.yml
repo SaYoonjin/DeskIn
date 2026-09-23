@@ -6,8 +6,8 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -19,20 +19,34 @@ spring:
     jdbc:
       initialize-schema: always
 
+auth:
+  refresh-token-duration: 7d
+  allowed-origins: ${AUTH_ALLOWED_ORIGINS}
+  rate-limit-max-attempts: 5
+  rate-limit-window: 1m
+
 ---
 spring:
   config:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:mysql://localhost:3306/deskin?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: root
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/deskin}
+    username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-change-me}
-  access-token-expire-ms: 3600000 # 1h
+  secret: ${JWT_SECRET}
+  access-token-expire-ms: 900000
+  issuer: deskin
+  audience: deskin-web
+
+auth:
+  allowed-origins: ${AUTH_ALLOWED_ORIGINS:http://localhost:3000}
 
 toss:
   secret-key: ${TOSS_SECRET_KEY:}
@@ -48,11 +62,13 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    driver-class-name: org.postgresql.Driver
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-expire-ms: 3600000
+  access-token-expire-ms: 900000
+  issuer: deskin
+  audience: deskin-web
 
 toss:
   secret-key: ${TOSS_SECRET_KEY}

@@ -9,13 +9,13 @@ DeskIn은 데스크테리어(desk interior) 상품을 판매하는 멀티셀러 
 - 외부 PG(Toss Payments)와 내부 결제 상태의 일치
 - 판매자별 정산 처리
 
-아래 기능과 구조는 구현 목표 및 개발 계획이며, 구현이 완료된 기능을 의미하지 않습니다.
+커머스 도메인은 개발 예정이며, Auth 및 공통 인증·인가 구현 상태는 아래에 별도로 정리합니다.
 
 ## Tech Stack
 
 - Java 17 / Spring Boot 3.3
 - Spring Web, Spring Data JPA, Spring Security, Spring Batch
-- MySQL
+- PostgreSQL
 - JWT (jjwt)
 - Toss Payments (결제 PG)
 - Gradle
@@ -31,17 +31,18 @@ DeskIn은 데스크테리어(desk interior) 상품을 판매하는 멀티셀러 
 
 ## 현재 개발 단계: Auth 및 공통 인증·인가 기반
 
-첫 작업으로 다음 범위를 구현할 예정이며, 관련 GitHub Issue는 생성된 상태입니다.
+다음 인증 기능을 구현했습니다.
 
-- 회원가입·로그인·로그아웃 API
-- Spring Security와 JWT 기반 토큰 발급·검증
-- 각 도메인에서 일관되게 사용할 로그인 사용자 ID와 역할 제공
-- 역할별 API 접근 제어 및 공통 인증·인가 오류 응답
-- 관련 단위·통합 테스트와 팀원용 인증 설정·사용 방법 안내
+- 아이디·비밀번호 기반 회원가입·로그인, Refresh Token 갱신, Refresh Token 삭제 로그아웃
+- BUYER / SELLER / ADMIN 단일 역할과 역할별 API 접근 제한
+- 판매자 가입 시 User·Seller 동시 생성
+- JWT Access Token 15분, User에 연결된 Refresh Token 7일
+- 동일 Refresh Token으로 Access Token 재발급, 로그아웃 시 해당 Refresh Token 삭제
+- JWT 전용 인증 필터·기본 CORS, 공통 principal 및 인증 오류 응답
 
-현재 사용자 정보는 내부 공통 인증 객체로 제공하며, 별도의 사용자 정보 조회 API는 이번 범위에 포함하지 않습니다.
+Docker 없이 실행 가능한 단위·MVC 테스트와 JAR 빌드를 검증했습니다. **PostgreSQL 통합 테스트는 Docker 부재로 미실행**이며, 코드는 작성하고 컴파일했습니다. 실제 PostgreSQL 기동·동시성 검증 완료를 의미하지 않습니다.
 
-인증 정책과 공통 계약을 먼저 확정한 뒤 구현합니다. 로그인 식별자·가입 필수 정보·비밀번호 조건, 역할 부여 및 판매자 전환 방식, User와 Seller의 연결, 토큰 전달 방식·유효기간·Refresh Token 도입 여부, 로그아웃 시 토큰 무효화 방식, 요청·응답 및 오류 형식은 아직 확정하지 않았습니다. 현재 설정의 Access Token 유효기간 1시간도 유지 여부를 결정할 예정입니다.
+상세 내용: [인증 API 계약](docs/auth-api.md), [검증 상태](docs/verification.md), [개발·Git 규칙](CONTRIBUTING.md).
 
 ## 패키지 구조 (DDD 기반)
 
@@ -68,41 +69,53 @@ com.deskin
 
 ## 로컬 실행
 
-아래는 구현 진행 시 사용할 로컬 실행 절차입니다. 현재 인증 관련 주요 Java 파일은 비어 있는 초기 단계이며, 애플리케이션 실행과 인증 동작 검증이 완료된 상태는 아닙니다.
+1. PostgreSQL에 `deskin` 데이터베이스를 생성합니다. 테스트 컨테이너 기준 버전은 PostgreSQL 16입니다.
+2. 로컬 환경변수를 설정합니다. 비밀 값은 저장소에 커밋하지 않습니다.
 
-1. MySQL에 `deskin` 데이터베이스 생성
-2. 환경변수 설정 (또는 `application-local.yml`로 오버라이드)
-
-   ```
+   ```text
+   DB_URL=jdbc:postgresql://localhost:5432/deskin
+   DB_USERNAME=postgres
    DB_PASSWORD=...
-   JWT_SECRET=...
-   TOSS_SECRET_KEY=...
-   TOSS_CLIENT_KEY=...
+   JWT_SECRET=최소 32바이트의 무작위 비밀 값
+   AUTH_ALLOWED_ORIGINS=http://localhost:3000
    ```
 
-3. 실행
+   로컬 기본 DB 주소·사용자는 위와 같으며, JWT 비밀키에는 기본값이 없습니다. 여러 Origin은 쉼표로 구분합니다. `prod` 프로필은 DB_URL·DB_USERNAME·DB_PASSWORD·JWT_SECRET·AUTH_ALLOWED_ORIGINS를 필수로 주입하며 토큰을 JSON으로 전달합니다. 기존 Toss 설정을 위해 prod에는 TOSS_SECRET_KEY·TOSS_CLIENT_KEY도 지정합니다.
+
+3. 실행합니다.
 
    ```bash
    ./gradlew bootRun
    ```
 
+브라우저 교차 출처 요청은 AUTH_ALLOWED_ORIGINS로 설정하며 쿠키 인증은 사용하지 않습니다. 현재 JPA 스키마 설정은 기존 개발 방식인 `ddl-auto: update`를 유지합니다.
+
 ## API 명세
 
-Notion API 명세서 기준으로 구현합니다. (auth / seller / products / orders / payments / webhooks / admin)
-
-현재 명세는 개발 계획이며, 상세 요청·응답은 각 기능의 구체적인 개발을 시작할 때 확정합니다. API 변경이 필요하면 윤진에게 먼저 알리고, 팀원과 공유한 뒤 명세에 반영합니다.
-
-Auth API의 현재 기준은 다음과 같습니다. 첨부 명세의 로그인 “인증 필요” 표기는 JWT 인증 여부 기준으로 수정이 필요합니다.
-
-| Method | Endpoint | JWT 인증 필요 여부 |
+| Method | Endpoint | 인증 방식 |
 | --- | --- | --- |
-| POST | `/auth/signup` | 불필요 |
-| POST | `/auth/login` | 불필요 |
-| POST | `/auth/logout` | 토큰 무효화 정책 확정 후 결정 |
+| POST | `/auth/signup` | JWT 불필요 |
+| POST | `/auth/login` | JWT 불필요 |
+| POST | `/auth/refresh` | 본문 Refresh Token + DB 해시·만료 확인 |
+| POST | `/auth/logout` | 본문 Refresh Token의 DB 해시 삭제 |
 
-공개 상품 조회는 비인증 접근을 허용하고, 주문·결제 등 보호 API에는 인증을 요구할 계획입니다. 판매자·관리자 API에는 역할별 접근 제한을 적용합니다. Webhook의 사용자 JWT 예외 경로와 별도 요청 검증 방식은 담당자와 협의합니다.
+첨부 명세의 로그인 인증 필요 표시는 불필요로, 로그아웃은 본문의 Refresh Token으로 처리합니다. 회원가입 응답은 userId·name·role이며 판매자의 가게 설정은 가입 이후로 분리합니다. 현재 토큰 갱신 API를 제공하며, 별도 CSRF API는 제거했습니다. 외부 Notion 문서는 자동 수정하지 않았습니다.
+
+공개 상품 목록·숫자 ID 상세 GET은 비회원도 접근할 수 있습니다. 주문·결제는 BUYER, `/seller/**`는 SELLER, `/admin/**`는 ADMIN만 접근합니다. 권한 상속은 없으며 Webhook은 별도 검증 정책 확정 전까지 차단합니다. 해당 도메인 API의 실제 비즈니스 구현은 후속 작업입니다.
+
+## 테스트
+
+```bash
+./gradlew test                  # Docker 없는 단위·MVC 테스트
+./gradlew compileTestJava       # PostgreSQL 통합 테스트 포함 컴파일
+./gradlew postgresTest          # Docker 환경에서 실제 PostgreSQL 통합 테스트
+./gradlew bootJar               # 실행 JAR 빌드
+```
+
+`test`와 기본 `check`는 Docker 테스트를 포함하지 않습니다. DB 검증 완료 여부는 `postgresTest`를 별도로 실행해 확인합니다. Docker가 없을 때 다른 DB로 대체하거나 자동으로 성공 처리하지 않습니다.
 
 ## 참고
 
 - 장바구니는 서버에 저장하지 않고 프론트엔드 Zustand 상태로만 관리합니다. 이 저장소에는 관련 테이블/엔티티가 없습니다.
-- 현재 프로젝트는 초기 구조를 준비한 단계이며, 기능은 정책과 공통 계약을 확정한 후 순차적으로 구현·검증할 예정입니다.
+- 사용자 정보 조회, 이메일 인증, 소셜 로그인, 비밀번호 재설정, 역할 전환, 판매자 사업자·정산 정보는 후속 범위입니다.
+- 본인 주문·본인 상품 등의 소유권 검사는 각 도메인 서비스에서 구현합니다.
