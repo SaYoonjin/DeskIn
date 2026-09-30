@@ -1,4 +1,5 @@
 package com.deskin.webhook.client;
 
-public record TossPaymentStatus(String paymentKey, String orderId, String status, Long totalAmount) {
+public record TossPaymentStatus(String paymentKey, String orderId, String status, Long totalAmount,
+                                String lastTransactionKey) {
 }

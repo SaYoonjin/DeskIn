@@ -10,8 +10,8 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "webhook_events", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_webhook_events_payment_key_status_amount",
-                columnNames = {"payment_key", "status", "total_amount"})
+        @UniqueConstraint(name = "uk_webhook_events_payment_key_status_transaction",
+                columnNames = {"payment_key", "status", "last_transaction_key"})
 })
 public class WebhookEvent extends BaseEntity {
     @Id
@@ -21,7 +21,8 @@ public class WebhookEvent extends BaseEntity {
     @Column(name = "event_type", nullable = false, length = 50)
     private String eventType;
 
-    @Column(name = "payment_key", nullable = false, length = 100)
+    // Toss 명세상 paymentKey는 최대 200자다.
+    @Column(name = "payment_key", nullable = false, length = 200)
     private String paymentKey;
 
     @Column(name = "order_id", nullable = false, length = 100)
@@ -33,11 +34,17 @@ public class WebhookEvent extends BaseEntity {
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount;
 
-    public WebhookEvent(String eventType, String paymentKey, String orderId, String status, Long totalAmount) {
+    // 같은 결제의 부분 취소처럼 status·금액이 같은 개별 거래를 구분한다. Toss 명세상 최대 64자다.
+    @Column(name = "last_transaction_key", nullable = false, length = 64)
+    private String lastTransactionKey;
+
+    public WebhookEvent(String eventType, String paymentKey, String orderId, String status, Long totalAmount,
+                        String lastTransactionKey) {
         this.eventType = eventType;
         this.paymentKey = paymentKey;
         this.orderId = orderId;
         this.status = status;
         this.totalAmount = totalAmount;
+        this.lastTransactionKey = lastTransactionKey;
     }
 }
